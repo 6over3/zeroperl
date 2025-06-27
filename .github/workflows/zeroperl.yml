@@ -486,7 +486,7 @@ jobs:
           -o zeroperl_unopt \
           -flto \
           -g \
-          -z stack-size=8388608 -Wl,--initial-memory=32636928 \
+          -z stack-size=8388608 -Wl,--initial-memory=36700160 \
           -static \
           -DNO_MATHOMS \
           -D_WASI_EMULATED_PROCESS_CLOCKS -lwasi-emulated-process-clocks \
