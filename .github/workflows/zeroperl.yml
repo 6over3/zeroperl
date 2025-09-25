@@ -363,9 +363,9 @@ jobs:
           find /zeroperl -type f \( -name "*.so" -o -name "*.a" -o -name "*.ld" -o -name "*.pod" -o -name "*.h" -o -executable \) -delete
 
           if [ "${{ github.event.inputs.build-exiftool }}" = "true" ]; then
-            cp -RT ../native/prefix/lib/site_perl/5.40.0/File/ /zeroperl/lib/5.40.0/wasm32-wasi/File/
-            mkdir -p /zeroperl/lib/5.40.0/wasm32-wasi/Image
-            cp -RT ../native/prefix/lib/site_perl/5.40.0/Image/ /zeroperl/lib/5.40.0/wasm32-wasi/Image/
+            cp -RT ../native/prefix/lib/site_perl/5.42.0/File/ /zeroperl/lib/5.42.0/wasm32-wasi/File/
+            mkdir -p /zeroperl/lib/5.42.0/wasm32-wasi/Image
+            cp -RT ../native/prefix/lib/site_perl/5.42.0/Image/ /zeroperl/lib/5.42.0/wasm32-wasi/Image/
           else
             echo "Skipping ExifTool copy..."
           fi
@@ -554,7 +554,7 @@ jobs:
             
           which wasm-opt
           wasm-opt zeroperl_unopt -Oz -g --strip-dwarf --enable-bulk-memory --enable-tail-call --asyncify --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read -o zeroperl.wasm
-          sudo cp /zeroperl/lib/5.40.0/wasm32-wasi/CORE/config.h ./config.h
+          sudo cp /zeroperl/lib/5.42.0/wasm32-wasi/CORE/config.h ./config.h
 
       - name: Upload Prefix (WASI build)
         uses: actions/upload-artifact@v4
