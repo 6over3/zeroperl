@@ -561,6 +561,7 @@ jobs:
             
           which wasm-opt
           wasm-opt zeroperl_unopt -Oz -g --strip-dwarf --enable-bulk-memory --enable-tail-call --asyncify --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read -o zeroperl.wasm
+          sudo cp /zeroperl/lib/5.40.0/wasm32-wasi/CORE/config.h ./config.h
 
       - name: Upload Prefix (WASI build)
         uses: actions/upload-artifact@v4
