@@ -608,6 +608,9 @@ int __wrap_fileno(FILE *stream)
     }
     return realfd; /* might be negative if real fileno fails. */
 }
+
+extern char **environ;
+
 // real
 int real_main(int argc, char *argv[])
 {
@@ -629,7 +632,7 @@ int real_main(int argc, char *argv[])
     PL_exit_flags &= ~PERL_EXIT_DESTRUCT_END;
 
     exitstatus = 0;
-    if (!perl_parse(zero_perl, xs_init, argc, argv, NULL))
+    if (!perl_parse(zero_perl, xs_init, argc, argv, environ))
     {
         assert(!PL_restartop);
         exitstatus = perl_run(zero_perl);

@@ -14,7 +14,9 @@ def run():
         print('''\
 wasiconfigure is a helper for configure, setting various environment
 variables so that wasic etc. are used. Typical usage:
+
   wasiconfigure ./configure [FLAGS]
+
 (but you can run any command instead of configure)''', file=sys.stderr)
         return 1
 
@@ -29,7 +31,6 @@ variables so that wasic etc. are used. Typical usage:
 
     # Get absolute path to our wasic wrapper
     our_path = os.path.dirname(os.path.abspath(__file__))
-    wasic_path = os.path.join(our_path, 'wasic')
 
     # Set up the environment for configure
     env = os.environ.copy()
@@ -45,15 +46,15 @@ variables so that wasic etc. are used. Typical usage:
     env['STRIP'] = os.path.join(env['WASI_SDK_PATH'], 'bin/llvm-strip')
     env['OBJDUMP'] = os.path.join(env['WASI_SDK_PATH'], 'bin/llvm-objdump')
 
-    # Host tools point directly to wasi clang
-    env['HOST_CC'] = '/usr/bin/clang'  # Adjust to your installed clang location if not /usr/bin
-    env['HOST_CXX'] = '/usr/bin/clang++'  # Adjust as needed
-    env['HOST_CFLAGS'] = '-D_HOST_EMULATED_SIGNAL -O2'
-    env['HOST_CXXFLAGS'] = '-D_HOST_EMULATED_SIGNAL -O2'
+    # Host tools point directly to system clang
+    env['HOST_CC'] = '/usr/bin/clang'
+    env['HOST_CXX'] = '/usr/bin/clang++'
+    env['HOST_CFLAGS'] = '-O2'
+    env['HOST_CXXFLAGS'] = '-O2'
     env['HOST_LDFLAGS'] = '-O2'
 
     # Cross compilation flags
-    env['CFLAGS'] = env.get('CFLAGS', '') + ' -D_WASI_EMULATED_SIGNAL -lwasi-emulated-signal'
+    env['CFLAGS'] = env.get('CFLAGS', '') + ' -D_WASI_EMULATED_SIGNAL'
     env['LDFLAGS'] = env.get('LDFLAGS', '') + ' -lwasi-emulated-signal'
     env['CROSS_COMPILE'] = os.path.join(our_path, 'wasi')
 

@@ -6,13 +6,14 @@ the environment variables to use wasic compiler tools.
 import os
 import sys
 import shlex
+import multiprocessing
 from subprocess import check_call, CalledProcessError
 
 def get_building_env():
     if 'WASI_SDK_PATH' not in os.environ:
         print('Error: WASI_SDK_PATH not set!', file=sys.stderr)
         sys.exit(1)
-
+    
     env = os.environ.copy()
     our_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -27,15 +28,15 @@ def get_building_env():
     env['STRIP'] = os.path.join(env['WASI_SDK_PATH'], 'bin/llvm-strip')
     env['OBJDUMP'] = os.path.join(env['WASI_SDK_PATH'], 'bin/llvm-objdump')
 
-    # Host tools point directly to wasi clang
-    env['HOST_CC'] = '/usr/bin/clang'  # Adjust to your installed clang location if not /usr/bin
-    env['HOST_CXX'] = '/usr/bin/clang++'  # Adjust as needed
-    env['HOST_CFLAGS'] = '-D_HOST_EMULATED_SIGNAL -O2'
-    env['HOST_CXXFLAGS'] = '-D_HOST_EMULATED_SIGNAL -O2'
+    # Host tools point directly to system clang
+    env['HOST_CC'] = '/usr/bin/clang'
+    env['HOST_CXX'] = '/usr/bin/clang++'
+    env['HOST_CFLAGS'] = '-O2'
+    env['HOST_CXXFLAGS'] = '-O2'
     env['HOST_LDFLAGS'] = '-O2'
 
     # Add default flags
-    env['CFLAGS'] = env.get('CFLAGS', '') + ' -D_WASI_EMULATED_SIGNAL -lwasi-emulated-signal'
+    env['CFLAGS'] = env.get('CFLAGS', '') + ' -D_WASI_EMULATED_SIGNAL'
     env['LDFLAGS'] = env.get('LDFLAGS', '') + ' -lwasi-emulated-signal'
 
     # Path setup
@@ -49,14 +50,17 @@ def run():
         print('''\
 wasimake is a helper for make, setting various environment
 variables to use the WASI SDK compiler tools. Typical usage:
+
   wasimake make [FLAGS]
+
 (but you can run any command instead of make)''', file=sys.stderr)
         return 1
-
+    
     args = sys.argv[1:]
     env = get_building_env()
-
-    print('make: ' + shlex.join(args), file=sys.stderr)
+    
+    print('Running: ' + shlex.join(args), file=sys.stderr)
+    
     try:
         check_call(args, env=env)
         return 0

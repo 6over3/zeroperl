@@ -4,6 +4,5 @@ Read the full blog [here](https://andrews.substack.com/p/zeroperl-sandboxed-perl
 
 
 > **Notes**  
-> 1. For some reason, if `LC_ALL=1` is not passed as an environment variable to Perl, it crashes. [No idea why](https://github.com/Perl/perl5/issues/22375).  
-> 2. The first argument passed to Perl **must** be `zeroperl`.  
-> 3. Depending on your runtime, you may need to map `/dev/null` as a preopen.
+> 1. The first argument passed to Perl **must** be `zeroperl`.  
+> 2. Depending on your runtime, you may need to map `/dev/null` as a preopen.
