@@ -514,6 +514,9 @@ jobs:
           -g \
           -z stack-size=${{ inputs.stack-size }} -Wl,--initial-memory=${{ inputs.initial-memory }} \
           -static \
+          -Wl,--export=__stack_pointer \
+          -Wl,--export=__memory_base \
+          -Wl,--export=__table_base \
           -DNO_MATHOMS \
           -D_WASI_EMULATED_PROCESS_CLOCKS -lwasi-emulated-process-clocks \
           -D_WASI_EMULATED_GETPID -lwasi-emulated-getpid \
