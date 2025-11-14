@@ -352,10 +352,10 @@ jobs:
             -Dosname="wasi" \
             -Darchname="wasm32-wasi" \
             -Dosvers="wasi${WASI_SDK_VERSION}" \
-            -Dmyuname="objex.ai" \
-            -Dmyhostname='objex.ai' \
-            -Dmydomain='objex.ai' \
-            -Dperladmin=root \
+            -Dmyuname="zeroperl" \
+            -Dmyhostname='6over3.com' \
+            -Dmydomain='6over3.com' \
+            -Dperladmin=lena \
             -Dcc="wasic" \
             -Dld="wasic" \
             -Dar="${WASI_SDK_PATH}/bin/llvm-ar" \
