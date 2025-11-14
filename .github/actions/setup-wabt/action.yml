@@ -1,0 +1,123 @@
+name: 'Setup WABT'
+description: 'Install WebAssembly Binary Toolkit (WABT)'
+inputs:
+  version:
+    description: 'WABT version to install'
+    required: false
+    default: '1.0.39'
+  install-path:
+    description: 'Directory to install WABT to'
+    required: false
+    default: '/opt/wabt'
+
+outputs:
+  wabt-path:
+    description: 'Path to the installed WABT'
+    value: ${{ steps.install-unix.outputs.wabt-path || steps.install-windows.outputs.wabt-path }}
+  wabt-version:
+    description: 'Version of WABT that was installed'
+    value: ${{ inputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect platform
+      id: platform
+      shell: bash
+      run: |
+        case "$RUNNER_OS" in
+          Linux)
+            echo "os=linux" >> $GITHUB_OUTPUT
+            ;;
+          macOS)
+            echo "os=macos" >> $GITHUB_OUTPUT
+            ;;
+          Windows)
+            echo "os=windows" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "Unsupported OS: $RUNNER_OS"
+            exit 1
+            ;;
+        esac
+
+        case "$RUNNER_ARCH" in
+          X64)
+            echo "arch=x64" >> $GITHUB_OUTPUT
+            ;;
+          ARM64)
+            echo "arch=arm64" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "Unsupported architecture: $RUNNER_ARCH"
+            exit 1
+            ;;
+        esac
+
+    - name: Download and install WABT (Unix)
+      id: install-unix
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        INSTALL_PATH: ${{ inputs.install-path }}
+        OS: ${{ steps.platform.outputs.os }}
+        ARCH: ${{ steps.platform.outputs.arch }}
+      run: |
+        TARBALL="wabt-${VERSION}-${OS}-${ARCH}.tar.gz"
+        URL="https://github.com/WebAssembly/wabt/releases/download/${VERSION}/${TARBALL}"
+
+        echo "Downloading WABT ${VERSION} for ${OS}-${ARCH}"
+        echo "URL: ${URL}"
+
+        curl -L -o wabt.tar.gz "${URL}"
+
+        mkdir -p "${INSTALL_PATH}"
+        tar -xzf wabt.tar.gz -C "${INSTALL_PATH}" --strip-components=1
+        rm wabt.tar.gz
+
+        echo "wabt-path=${INSTALL_PATH}" >> $GITHUB_OUTPUT
+        echo "${INSTALL_PATH}/bin" >> $GITHUB_PATH
+
+        echo "WABT installed to ${INSTALL_PATH}"
+
+    - name: Download and install WABT (Windows)
+      id: install-windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        INSTALL_PATH: ${{ inputs.install-path }}
+        OS: ${{ steps.platform.outputs.os }}
+        ARCH: ${{ steps.platform.outputs.arch }}
+      run: |
+        $TARBALL = "wabt-$env:VERSION-$env:OS-$env:ARCH.tar.gz"
+        $URL = "https://github.com/WebAssembly/wabt/releases/download/$env:VERSION/$TARBALL"
+
+        Write-Host "Downloading WABT $env:VERSION for $env:OS-$env:ARCH"
+        Write-Host "URL: $URL"
+
+        Invoke-WebRequest -Uri $URL -OutFile wabt.tar.gz
+
+        New-Item -ItemType Directory -Force -Path $env:INSTALL_PATH | Out-Null
+        tar -xzf wabt.tar.gz -C $env:INSTALL_PATH --strip-components=1
+        Remove-Item wabt.tar.gz
+
+        Write-Output "wabt-path=$env:INSTALL_PATH" >> $env:GITHUB_OUTPUT
+        Write-Output "$env:INSTALL_PATH\bin" >> $env:GITHUB_PATH
+
+        Write-Host "WABT installed to $env:INSTALL_PATH"
+
+    - name: Verify installation (Unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        wasm-objdump --version
+        echo "WABT installation verified"
+
+    - name: Verify installation (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        & wasm-objdump --version
+        Write-Host "WABT installation verified"
