@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Create /zeroperl directory
         run: |
