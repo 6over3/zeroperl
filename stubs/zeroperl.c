@@ -499,6 +499,8 @@ typedef enum {
 //! Value type enumeration
 typedef enum {
   ZEROPERL_TYPE_UNDEF,
+  ZEROPERL_TYPE_TRUE,
+  ZEROPERL_TYPE_FALSE,
   ZEROPERL_TYPE_INT,
   ZEROPERL_TYPE_DOUBLE,
   ZEROPERL_TYPE_STRING,
@@ -1245,6 +1247,13 @@ zeroperl_type zeroperl_get_type(zeroperl_value *val) {
 
   if (!SvOK(sv)) {
     return ZEROPERL_TYPE_UNDEF;
+  }
+
+  if (sv == &PL_sv_yes) {
+    return ZEROPERL_TYPE_TRUE;
+  }
+  if (sv == &PL_sv_no) {
+    return ZEROPERL_TYPE_FALSE;
   }
 
   if (SvROK(sv)) {
