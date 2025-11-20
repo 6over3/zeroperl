@@ -1115,8 +1115,6 @@ zeroperl_value *zeroperl_new_double(double d) {
 }
 
 //! Create a new string value (UTF-8)
-//!
-//! If len is 0, strlen will be used to calculate the length.
 ZEROPERL_API("zeroperl_new_string")
 zeroperl_value *zeroperl_new_string(const char *str, size_t len) {
   if (!zero_perl || !zero_perl_can_evaluate) {
@@ -1129,8 +1127,15 @@ zeroperl_value *zeroperl_new_string(const char *str, size_t len) {
     return NULL;
   }
 
-  if (len == 0 && str) {
-    len = strlen(str);
+  if (len == 0) {
+    val->sv = newSVpvn("", 0);
+    SvUTF8_on(val->sv);
+    return val;
+  }
+
+  if (!str) {
+    free(val);
+    return NULL;
   }
 
   val->sv = newSVpvn(str, len);
