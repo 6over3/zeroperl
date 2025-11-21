@@ -55,6 +55,7 @@
 
 //! Forward declaration for XS init function
 static void xs_init(pTHX);
+extern ssize_t __wrap_write(int fd, const void *buf, size_t count);
 
 //! Global Perl interpreter instance
 static PerlInterpreter *zero_perl = NULL;
@@ -173,6 +174,10 @@ __attribute__((noinline)) void perror(const char *s) {
   }
   
   DEBUG_LOG_INTERNAL(printf_buffer);
+}
+
+__attribute__((noinline)) ssize_t __wrap_write(int fd, const void *buf, size_t count) {
+  return __real_write(fd, buf, count);
 }
 
 //! Override write for file descriptor 1 (stdout) and 2 (stderr)
@@ -438,11 +443,6 @@ static SFS_Stat_Result sfs_stat(const char *path, int fd, struct stat *stbuf) {
     stbuf->st_mode = S_IFREG;
     return SFS_STAT_OURS;
   }
-}
-
-// Create a separate wrapper name for internal use
-__attribute__((noinline)) ssize_t __wrap_write(int fd, const void *buf, size_t count) {
-  return __real_write(fd, buf, count);
 }
 
 //! Wrapper for fopen: tries SFS first, then falls back to real fopen
@@ -733,8 +733,8 @@ void zeroperl_clear_host_error(void) {
 
 //! XS callback that dispatches to host functions
 static XS(xs_host_dispatch) {
-
-  DEBUG_LOG("why am i in dispatch")
+  dTHX;
+  DEBUG_LOG("why am i in dispatch");
   dXSARGS;
   
   int32_t func_id = (int32_t)CvXSUBANY(cv).any_i32;
