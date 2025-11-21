@@ -53,55 +53,6 @@
 #define DEBUG_LOG(msg)                                                         \
   DEBUG_LOG_INTERNAL(__FILE__ ":" STRINGIZE(__LINE__) ": " msg "\n")
 
-
-
-typedef struct {
-    PerlIO base;
-    // No additional fields needed
-} PerlIODebug;
-
-static SSize_t PerlIODebug_write(pTHX_ PerlIO *f, const void *vbuf, Size_t count) {
-    const char *buf = (const char *)vbuf;
-    
-
-    __wasi_ciovec_t iov = {.buf = (const uint8_t *)buf, .buf_len = count};
-    size_t nwritten;
-    __wasi_fd_write(STDERR_FILENO, &iov, 1, &nwritten);
-    
-    return (SSize_t)nwritten;
-}
-
-static PerlIO_funcs PerlIO_debug = {
-    sizeof(PerlIO_funcs),
-    "debug",
-    sizeof(PerlIODebug),
-    PERLIO_K_RAW,
-    NULL, // pushed
-    NULL, // popped
-    NULL, // open
-    NULL, // binmode
-    NULL, // getarg
-    NULL, // fileno
-    NULL, // dup
-    NULL, // read
-    NULL, // unread
-    PerlIODebug_write, // write
-    NULL, // seek
-    NULL, // tell
-    NULL, // close
-    NULL, // flush
-    NULL, // fill
-    NULL, // eof
-    NULL, // error
-    NULL, // clearerr
-    NULL, // setlinebuf
-    NULL, // get_base
-    NULL, // get_bufsiz
-    NULL, // get_ptr
-    NULL, // get_cnt
-    NULL, // set_ptrcnt
-};
-
 //! Forward declaration for XS init function
 static void xs_init(pTHX);
 
@@ -716,51 +667,77 @@ static XS(xs_host_dispatch) {
 
 //! Internal callback for initialization
 static int zeroperl_init_callback(int argc, char **argv) {
+  DEBUG_LOG("zeroperl_init_callback: START");
   (void)argc;
   zeroperl_context *ctx = (zeroperl_context *)argv;
 
+  DEBUG_LOG("zeroperl_init_callback: checking system initialized flag");
   if (!zero_perl_system_initialized) {
+    DEBUG_LOG("zeroperl_init_callback: calling PERL_SYS_INIT3");
     PERL_SYS_INIT3(&ctx->data.init.argc, &ctx->data.init.argv, &environ);
+    DEBUG_LOG("zeroperl_init_callback: calling PERL_SYS_FPU_INIT");
     PERL_SYS_FPU_INIT;
     zero_perl_system_initialized = true;
+    DEBUG_LOG("zeroperl_init_callback: system initialization complete");
+  } else {
+    DEBUG_LOG("zeroperl_init_callback: system already initialized, skipping");
   }
 
+  DEBUG_LOG("zeroperl_init_callback: calling perl_alloc");
   zero_perl = perl_alloc();
   if (!zero_perl) {
+    DEBUG_LOG("zeroperl_init_callback: perl_alloc FAILED");
     ctx->result = 1;
     return 1;
   }
+  DEBUG_LOG("zeroperl_init_callback: perl_alloc SUCCESS");
 
+  DEBUG_LOG("zeroperl_init_callback: calling perl_construct");
   perl_construct(zero_perl);
+  DEBUG_LOG("zeroperl_init_callback: perl_construct complete");
 
+  DEBUG_LOG("zeroperl_init_callback: setting destruct level and exit flags");
   PL_perl_destruct_level = 0;
   PL_exit_flags &= ~PERL_EXIT_DESTRUCT_END;
 
   if (ctx->data.init.argc > 0 && ctx->data.init.argv) {
+    DEBUG_LOG("zeroperl_init_callback: parsing with provided args");
     if (perl_parse(zero_perl, xs_init, ctx->data.init.argc, ctx->data.init.argv,
                    environ) != 0) {
+      DEBUG_LOG("zeroperl_init_callback: perl_parse FAILED with args");
       zeroperl_capture_error();
       ctx->result = 1;
       return 1;
     }
+    DEBUG_LOG("zeroperl_init_callback: perl_parse SUCCESS with args");
   } else {
+    DEBUG_LOG("zeroperl_init_callback: parsing with minimal args");
     char *minimal_argv[] = {"", "-e", "0", NULL};
     if (perl_parse(zero_perl, xs_init, 3, minimal_argv, environ) != 0) {
+      DEBUG_LOG("zeroperl_init_callback: perl_parse FAILED with minimal args");
       zeroperl_capture_error();
       ctx->result = 1;
       return 1;
     }
+    DEBUG_LOG("zeroperl_init_callback: perl_parse SUCCESS with minimal args");
   }
 
+  DEBUG_LOG("zeroperl_init_callback: calling perl_run");
   int run_result = perl_run(zero_perl);
+  DEBUG_LOG("zeroperl_init_callback: perl_run returned");
+  
   if (run_result != 0) {
+    DEBUG_LOG("zeroperl_init_callback: perl_run FAILED");
     zeroperl_capture_error();
     ctx->result = run_result;
     return run_result;
   }
+  DEBUG_LOG("zeroperl_init_callback: perl_run SUCCESS");
 
   zero_perl_can_evaluate = true;
   ctx->result = 0;
+  
+  DEBUG_LOG("zeroperl_init_callback: COMPLETE, returning 0");
   return 0;
 }
 
@@ -926,14 +903,30 @@ static int zeroperl_reset_callback(int argc, char **argv) {
 //! Returns 0 on success, non-zero on error.
 ZEROPERL_API("zeroperl_init")
 int zeroperl_init(void) {
+  DEBUG_LOG("zeroperl_init: START");
+  
   if (zero_perl) {
+    DEBUG_LOG("zeroperl_init: interpreter already exists, returning 0");
     return 0;
   }
 
+  DEBUG_LOG("zeroperl_init: creating context");
   zeroperl_context ctx = {.op_type = ZEROPERL_OP_INIT,
                           .result = 0,
                           .data.init = {.argc = 0, .argv = NULL}};
-  return asyncjmp_rt_start(zeroperl_init_callback, 0, (char **)&ctx);
+  
+  DEBUG_LOG("zeroperl_init: calling asyncjmp_rt_start");
+  int result = asyncjmp_rt_start(zeroperl_init_callback, 0, (char **)&ctx);
+  
+  DEBUG_LOG("zeroperl_init: asyncjmp_rt_start returned");
+  
+  if (result != 0) {
+    DEBUG_LOG("zeroperl_init: FAILED with non-zero result");
+  } else {
+    DEBUG_LOG("zeroperl_init: SUCCESS");
+  }
+  
+  return result;
 }
 
 //! Initialize the Perl interpreter with command-line arguments
@@ -2230,16 +2223,6 @@ EXTERN_C void boot_List__Util(pTHX_ CV *cv);
 EXTERN_C void boot_Fcntl(pTHX_ CV *cv);
 EXTERN_C void boot_Opcode(pTHX_ CV *cv);
 
-static void register_debug_layer(pTHX) {
-    PerlIO_define_layer(aTHX_ &PerlIO_debug);
-    
-    // Apply the layer to STDERR
-    PerlIO *perr = PerlIO_stderr();
-    if (perr) {
-        PerlIO_push(aTHX_ perr, &PerlIO_debug, NULL, NULL);
-    }
-}
-
 static void xs_init(pTHX) {
   static const char file[] = __FILE__;
   dXSUB_SYS;
@@ -2282,6 +2265,4 @@ static void xs_init(pTHX) {
   newXS("List::Util::bootstrap", boot_List__Util, file);
   newXS("Fcntl::bootstrap", boot_Fcntl, file);
   newXS("Opcode::bootstrap", boot_Opcode, file);
-
-  register_debug_layer(aTHX)
 }
