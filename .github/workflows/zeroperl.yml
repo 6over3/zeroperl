@@ -555,7 +555,6 @@ jobs:
           -Wl,--wrap=lseek \
           -Wl,--wrap=stat \
           -Wl,--wrap=fstat \
-          -Wl,--wrap=write \
           lib/auto/File/DosGlob/DosGlob.a \
           lib/auto/File/Glob/Glob.a \
           lib/auto/Sys/Hostname/Hostname.a \

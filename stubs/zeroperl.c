@@ -55,7 +55,6 @@
 
 //! Forward declaration for XS init function
 static void xs_init(pTHX);
-extern ssize_t __wrap_write(int fd, const void *buf, size_t count);
 
 //! Global Perl interpreter instance
 static PerlInterpreter *zero_perl = NULL;
@@ -84,119 +83,6 @@ extern int __real_access(const char *path, int flags);
 extern int __real_stat(const char *restrict path,
                        struct stat *restrict statbuf);
 extern int __real_fstat(int fd, struct stat *statbuf);
-extern ssize_t __real_write(int fd, const void *buf, size_t count);
-
-//! Buffer for building formatted output strings
-static char printf_buffer[2048];
-
-//! Override printf to redirect to DEBUG_LOG
-__attribute__((noinline)) int printf(const char *format, ...) {
-  va_list args;
-  va_start(args, format);
-  int result = vsnprintf(printf_buffer, sizeof(printf_buffer), format, args);
-  va_end(args);
-  
-  if (result > 0) {
-    DEBUG_LOG_INTERNAL(printf_buffer);
-  }
-  
-  return result;
-}
-
-//! Override fprintf to redirect to DEBUG_LOG (ignore the FILE* parameter)
-__attribute__((noinline)) int fprintf(FILE *stream, const char *format, ...) {
-  (void)stream; // Ignore which stream was requested
-  
-  va_list args;
-  va_start(args, format);
-  int result = vsnprintf(printf_buffer, sizeof(printf_buffer), format, args);
-  va_end(args);
-  
-  if (result > 0) {
-    DEBUG_LOG_INTERNAL(printf_buffer);
-  }
-  
-  return result;
-}
-
-//! Override vfprintf for variadic logging functions
-__attribute__((noinline)) int vfprintf(FILE *stream, const char *format, va_list ap) {
-  (void)stream; // Ignore which stream was requested
-  
-  int result = vsnprintf(printf_buffer, sizeof(printf_buffer), format, ap);
-  
-  if (result > 0) {
-    DEBUG_LOG_INTERNAL(printf_buffer);
-  }
-  
-  return result;
-}
-
-//! Override fputs to redirect to DEBUG_LOG
-__attribute__((noinline)) int fputs(const char *s, FILE *stream) {
-  (void)stream; // Ignore which stream was requested
-  
-  if (s) {
-    DEBUG_LOG_INTERNAL(s);
-    return strlen(s);
-  }
-  
-  return EOF;
-}
-
-//! Override fputc to redirect to DEBUG_LOG (character by character)
-__attribute__((noinline)) int fputc(int c, FILE *stream) {
-  (void)stream; // Ignore which stream was requested
-  
-  char buf[2] = {(char)c, '\0'};
-  DEBUG_LOG_INTERNAL(buf);
-  
-  return c;
-}
-
-//! Override puts to redirect to DEBUG_LOG (adds newline automatically)
-__attribute__((noinline)) int puts(const char *s) {
-  if (s) {
-    DEBUG_LOG_INTERNAL(s);
-    DEBUG_LOG_INTERNAL("\n");
-    return strlen(s) + 1;
-  }
-  
-  return EOF;
-}
-
-//! Override perror to redirect to DEBUG_LOG
-__attribute__((noinline)) void perror(const char *s) {
-  if (s && s[0] != '\0') {
-    snprintf(printf_buffer, sizeof(printf_buffer), "%s: %s\n", s, strerror(errno));
-  } else {
-    snprintf(printf_buffer, sizeof(printf_buffer), "%s\n", strerror(errno));
-  }
-  
-  DEBUG_LOG_INTERNAL(printf_buffer);
-}
-
-__attribute__((noinline)) ssize_t __wrap_write(int fd, const void *buf, size_t count) {
-  return __real_write(fd, buf, count);
-}
-
-//! Override write for file descriptor 1 (stdout) and 2 (stderr)
-__attribute__((noinline)) ssize_t write(int fd, const void *buf, size_t count) {
-  // Only intercept writes to stdout and stderr
-  if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
-    if (buf && count > 0) {
-      // Ensure null-termination for DEBUG_LOG_INTERNAL
-      size_t safe_len = (count < sizeof(printf_buffer) - 1) ? count : sizeof(printf_buffer) - 1;
-      memcpy(printf_buffer, buf, safe_len);
-      printf_buffer[safe_len] = '\0';
-      DEBUG_LOG_INTERNAL(printf_buffer);
-    }
-    return (ssize_t)count;
-  }
-  
-  // For other file descriptors, use the real write (wrapped version)
-  return __wrap_write(fd, buf, count);
-}
 
 //! Maximum number of file descriptors to track
 #ifndef FD_MAX_TRACK
@@ -733,8 +619,6 @@ void zeroperl_clear_host_error(void) {
 
 //! XS callback that dispatches to host functions
 static XS(xs_host_dispatch) {
-  dTHX;
-  DEBUG_LOG("why am i in dispatch");
   dXSARGS;
   
   int32_t func_id = (int32_t)CvXSUBANY(cv).any_i32;
@@ -747,7 +631,7 @@ static XS(xs_host_dispatch) {
     for (int i = 0; i < items; i++) {
       argv[i] = (zeroperl_value *)malloc(sizeof(zeroperl_value));
       argv[i]->sv = ST(i);
-     // SvREFCNT_inc(argv[i]->sv);
+      SvREFCNT_inc(argv[i]->sv);
     }
   }
   
@@ -755,7 +639,7 @@ static XS(xs_host_dispatch) {
   
   if (argv) {
     for (int i = 0; i < items; i++) {
-      //SvREFCNT_dec(argv[i]->sv);
+      SvREFCNT_dec(argv[i]->sv);
       free(argv[i]);
     }
     free(argv);
@@ -775,7 +659,7 @@ static XS(xs_host_dispatch) {
   }
   
   SV *sv = result->sv;
- // SvREFCNT_inc(sv);
+  SvREFCNT_inc(sv);
   free(result);
   ST(0) = sv_2mortal(sv);
   XSRETURN(1);
@@ -783,77 +667,51 @@ static XS(xs_host_dispatch) {
 
 //! Internal callback for initialization
 static int zeroperl_init_callback(int argc, char **argv) {
-  DEBUG_LOG("zeroperl_init_callback: START");
   (void)argc;
   zeroperl_context *ctx = (zeroperl_context *)argv;
 
-  DEBUG_LOG("zeroperl_init_callback: checking system initialized flag");
   if (!zero_perl_system_initialized) {
-    DEBUG_LOG("zeroperl_init_callback: calling PERL_SYS_INIT3");
     PERL_SYS_INIT3(&ctx->data.init.argc, &ctx->data.init.argv, &environ);
-    DEBUG_LOG("zeroperl_init_callback: calling PERL_SYS_FPU_INIT");
     PERL_SYS_FPU_INIT;
     zero_perl_system_initialized = true;
-    DEBUG_LOG("zeroperl_init_callback: system initialization complete");
-  } else {
-    DEBUG_LOG("zeroperl_init_callback: system already initialized, skipping");
   }
 
-  DEBUG_LOG("zeroperl_init_callback: calling perl_alloc");
   zero_perl = perl_alloc();
   if (!zero_perl) {
-    DEBUG_LOG("zeroperl_init_callback: perl_alloc FAILED");
     ctx->result = 1;
     return 1;
   }
-  DEBUG_LOG("zeroperl_init_callback: perl_alloc SUCCESS");
 
-  DEBUG_LOG("zeroperl_init_callback: calling perl_construct");
   perl_construct(zero_perl);
-  DEBUG_LOG("zeroperl_init_callback: perl_construct complete");
 
-  DEBUG_LOG("zeroperl_init_callback: setting destruct level and exit flags");
   PL_perl_destruct_level = 0;
   PL_exit_flags &= ~PERL_EXIT_DESTRUCT_END;
 
   if (ctx->data.init.argc > 0 && ctx->data.init.argv) {
-    DEBUG_LOG("zeroperl_init_callback: parsing with provided args");
     if (perl_parse(zero_perl, xs_init, ctx->data.init.argc, ctx->data.init.argv,
                    environ) != 0) {
-      DEBUG_LOG("zeroperl_init_callback: perl_parse FAILED with args");
       zeroperl_capture_error();
       ctx->result = 1;
       return 1;
     }
-    DEBUG_LOG("zeroperl_init_callback: perl_parse SUCCESS with args");
   } else {
-    DEBUG_LOG("zeroperl_init_callback: parsing with minimal args");
     char *minimal_argv[] = {"", "-e", "0", NULL};
     if (perl_parse(zero_perl, xs_init, 3, minimal_argv, environ) != 0) {
-      DEBUG_LOG("zeroperl_init_callback: perl_parse FAILED with minimal args");
       zeroperl_capture_error();
       ctx->result = 1;
       return 1;
     }
-    DEBUG_LOG("zeroperl_init_callback: perl_parse SUCCESS with minimal args");
   }
 
-  DEBUG_LOG("zeroperl_init_callback: calling perl_run");
   int run_result = perl_run(zero_perl);
-  DEBUG_LOG("zeroperl_init_callback: perl_run returned");
-  
   if (run_result != 0) {
-    DEBUG_LOG("zeroperl_init_callback: perl_run FAILED");
     zeroperl_capture_error();
     ctx->result = run_result;
     return run_result;
   }
-  DEBUG_LOG("zeroperl_init_callback: perl_run SUCCESS");
 
   zero_perl_can_evaluate = true;
   ctx->result = 0;
-  
-  DEBUG_LOG("zeroperl_init_callback: COMPLETE, returning 0");
   return 0;
 }
 
@@ -1019,30 +877,14 @@ static int zeroperl_reset_callback(int argc, char **argv) {
 //! Returns 0 on success, non-zero on error.
 ZEROPERL_API("zeroperl_init")
 int zeroperl_init(void) {
-  DEBUG_LOG("zeroperl_init: START");
-  
   if (zero_perl) {
-    DEBUG_LOG("zeroperl_init: interpreter already exists, returning 0");
     return 0;
   }
 
-  DEBUG_LOG("zeroperl_init: creating context");
   zeroperl_context ctx = {.op_type = ZEROPERL_OP_INIT,
                           .result = 0,
                           .data.init = {.argc = 0, .argv = NULL}};
-  
-  DEBUG_LOG("zeroperl_init: calling asyncjmp_rt_start");
-  int result = asyncjmp_rt_start(zeroperl_init_callback, 0, (char **)&ctx);
-  
-  DEBUG_LOG("zeroperl_init: asyncjmp_rt_start returned");
-  
-  if (result != 0) {
-    DEBUG_LOG("zeroperl_init: FAILED with non-zero result");
-  } else {
-    DEBUG_LOG("zeroperl_init: SUCCESS");
-  }
-  
-  return result;
+  return asyncjmp_rt_start(zeroperl_init_callback, 0, (char **)&ctx);
 }
 
 //! Initialize the Perl interpreter with command-line arguments

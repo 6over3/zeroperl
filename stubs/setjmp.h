@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #ifndef WASM_SETJMP_STACK_BUFFER_SIZE
-#define WASM_SETJMP_STACK_BUFFER_SIZE 32768
+#define WASM_SETJMP_STACK_BUFFER_SIZE 8192
 #endif
 
 struct __asyncjmp_asyncify_jmp_buf
@@ -65,6 +65,7 @@ struct asyncjmp_try_catch
     asyncjmp_try_catch_func_t try_f;
     asyncjmp_try_catch_func_t catch_f;
     void *context;
+    void *stack_pointer;
     int state;
 };
 
