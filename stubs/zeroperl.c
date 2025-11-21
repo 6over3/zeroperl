@@ -733,6 +733,8 @@ void zeroperl_clear_host_error(void) {
 
 //! XS callback that dispatches to host functions
 static XS(xs_host_dispatch) {
+
+  DEBUG_LOG("why am i in dispatch")
   dXSARGS;
   
   int32_t func_id = (int32_t)CvXSUBANY(cv).any_i32;
@@ -745,7 +747,7 @@ static XS(xs_host_dispatch) {
     for (int i = 0; i < items; i++) {
       argv[i] = (zeroperl_value *)malloc(sizeof(zeroperl_value));
       argv[i]->sv = ST(i);
-      SvREFCNT_inc(argv[i]->sv);
+     // SvREFCNT_inc(argv[i]->sv);
     }
   }
   
@@ -753,7 +755,7 @@ static XS(xs_host_dispatch) {
   
   if (argv) {
     for (int i = 0; i < items; i++) {
-      SvREFCNT_dec(argv[i]->sv);
+      //SvREFCNT_dec(argv[i]->sv);
       free(argv[i]);
     }
     free(argv);
@@ -773,7 +775,7 @@ static XS(xs_host_dispatch) {
   }
   
   SV *sv = result->sv;
-  SvREFCNT_inc(sv);
+ // SvREFCNT_inc(sv);
   free(result);
   ST(0) = sv_2mortal(sv);
   XSRETURN(1);
