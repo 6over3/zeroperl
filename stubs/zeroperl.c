@@ -53,6 +53,55 @@
 #define DEBUG_LOG(msg)                                                         \
   DEBUG_LOG_INTERNAL(__FILE__ ":" STRINGIZE(__LINE__) ": " msg "\n")
 
+
+
+typedef struct {
+    PerlIO base;
+    // No additional fields needed
+} PerlIODebug;
+
+static SSize_t PerlIODebug_write(pTHX_ PerlIO *f, const void *vbuf, Size_t count) {
+    const char *buf = (const char *)vbuf;
+    
+
+    __wasi_ciovec_t iov = {.buf = (const uint8_t *)buf, .buf_len = count};
+    size_t nwritten;
+    __wasi_fd_write(STDERR_FILENO, &iov, 1, &nwritten);
+    
+    return (SSize_t)nwritten;
+}
+
+static PerlIO_funcs PerlIO_debug = {
+    sizeof(PerlIO_funcs),
+    "debug",
+    sizeof(PerlIODebug),
+    PERLIO_K_RAW,
+    NULL, // pushed
+    NULL, // popped
+    NULL, // open
+    NULL, // binmode
+    NULL, // getarg
+    NULL, // fileno
+    NULL, // dup
+    NULL, // read
+    NULL, // unread
+    PerlIODebug_write, // write
+    NULL, // seek
+    NULL, // tell
+    NULL, // close
+    NULL, // flush
+    NULL, // fill
+    NULL, // eof
+    NULL, // error
+    NULL, // clearerr
+    NULL, // setlinebuf
+    NULL, // get_base
+    NULL, // get_bufsiz
+    NULL, // get_ptr
+    NULL, // get_cnt
+    NULL, // set_ptrcnt
+};
+
 //! Forward declaration for XS init function
 static void xs_init(pTHX);
 
@@ -2181,6 +2230,16 @@ EXTERN_C void boot_List__Util(pTHX_ CV *cv);
 EXTERN_C void boot_Fcntl(pTHX_ CV *cv);
 EXTERN_C void boot_Opcode(pTHX_ CV *cv);
 
+static void register_debug_layer(pTHX) {
+    PerlIO_define_layer(aTHX_ &PerlIO_debug);
+    
+    // Apply the layer to STDERR
+    PerlIO *perr = PerlIO_stderr();
+    if (perr) {
+        PerlIO_push(aTHX_ perr, &PerlIO_debug, NULL, NULL);
+    }
+}
+
 static void xs_init(pTHX) {
   static const char file[] = __FILE__;
   dXSUB_SYS;
@@ -2223,4 +2282,6 @@ static void xs_init(pTHX) {
   newXS("List::Util::bootstrap", boot_List__Util, file);
   newXS("Fcntl::bootstrap", boot_Fcntl, file);
   newXS("Opcode::bootstrap", boot_Opcode, file);
+
+  register_debug_layer(aTHX)
 }
