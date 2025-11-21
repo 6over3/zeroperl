@@ -141,24 +141,30 @@ jobs:
           # Install cpanminus into the native prefix
           cpan App::cpanminus <<<yes
 
-      - name: Install Perl::Strip
+      - name: Install Perl::Tidy
         shell: bash
         run: |
           # Still ensure we use the native prefix
           export PATH="$PWD/native/prefix/bin:$PATH"
-          cpanm Perl::Strip
+          cpanm Perl::Tidy
 
-      - name: Test Perl::Strip CLI (native)
+      - name: Test Perl::Tidy CLI (native)
         shell: bash
         run: |
-          # Add the native Perl bin directory so we can find perlstrip
+          # Add the native Perl bin directory so we can find perltidy
           export PATH="$PWD/native/prefix/bin:$PATH"
 
-          # Confirm perlstrip is available
-          command -v perlstrip
+          # Confirm perltidy is available
+          command -v perltidy
 
-          # Create a small test Perl file with comments
+          # Create a small test Perl file with comments and pod
           cat <<'EOCODE' > testcode.pl
+          =pod
+
+          This is pod documentation
+
+          =cut
+
           # This is a top-level comment
           my $x = 1;  # Another comment
           my $y = 2;  # More comments
@@ -168,11 +174,11 @@ jobs:
           echo "===== Original Code ====="
           cat testcode.pl
 
-          # Run perlstrip with the -s option, which strips comments in-place
-          perlstrip -s testcode.pl
+          # Run perltidy with flags to delete comments and pod
+          perltidy --delete-block-comments --delete-side-comments --delete-pod testcode.pl
 
           echo "===== Stripped Code ====="
-          cat testcode.pl
+          cat testcode.pl.tdy
 
       - name: Install ExifTool and Dependencies (native)
         if: ${{ github.event.inputs.build-exiftool == 'true' }}
@@ -194,7 +200,8 @@ jobs:
           export PATH="$PWD/native/prefix/bin:$PATH"
           sed -i "/\$SIG{INT}\s*=\s*'SigInt';/d" "$PWD/native/prefix/bin/exiftool"
           sed -i "/\$SIG{CONT}\s*=\s*'SigCont';/d" "$PWD/native/prefix/bin/exiftool"
-          perlstrip -o exiftool.min.pl "$PWD/native/prefix/bin/exiftool"
+          perltidy --delete-block-comments --delete-side-comments --delete-pod \
+            "$PWD/native/prefix/bin/exiftool" -o exiftool.min.pl
 
       - name: Upload ExifTool Stripped
         if: ${{ github.event.inputs.build-exiftool == 'true' }}
@@ -407,13 +414,13 @@ jobs:
 
           node ${{ github.workspace }}/tools/delete.js  ${{ github.workspace }}/tools/delete.txt /zeroperl ${{ github.event.inputs.perl-version }}
           if [ "${{ github.event.inputs.trim }}" = "true" ]; then
-            PERLSTRIP_BIN="$(realpath ../native/prefix/bin)"
-            echo "Perlstrip bin path: $PERLSTRIP_BIN"
-            export PATH="$PERLSTRIP_BIN:$PATH"
-            echo "Stripping comments from .pl and .pm files in /zeroperl..."
+            PERLTIDY_BIN="$(realpath ../native/prefix/bin)"
+            echo "Perltidy bin path: $PERLTIDY_BIN"
+            export PATH="$PERLTIDY_BIN:$PATH"
+            echo "Stripping comments and pod from .pl and .pm files in /zeroperl..."
                     
             find /zeroperl -type f \( -name '*.pl' -o -name '*.pm' \) -print0 | \
-              xargs -0 -P $(nproc) -I {} sh -c "export PATH='$PERLSTRIP_BIN:\$PATH'; echo 'Stripping {} with -s...' && perlstrip -s '{}'"
+              xargs -0 -P $(nproc) -I {} sh -c "export PATH='$PERLTIDY_BIN:\$PATH'; echo 'Stripping {}...' && perltidy --delete-block-comments --delete-side-comments --delete-pod '{}' -o '{}.tmp' && mv '{}.tmp' '{}'"
           fi
 
           mkdir ${{ github.workspace }}/gen
