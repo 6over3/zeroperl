@@ -417,8 +417,10 @@ jobs:
             PERLTIDY_BIN="$(realpath ../native/prefix/bin)"
             echo "Perltidy bin path: $PERLTIDY_BIN"
             export PATH="$PERLTIDY_BIN:$PATH"
+            echo "Making all .pl and .pm files writable..."
+            find /zeroperl -type f \( -name '*.pl' -o -name '*.pm' \) -exec chmod u+w {} \;
+                  
             echo "Stripping comments and pod from .pl and .pm files in /zeroperl..."
-                    
             find /zeroperl -type f \( -name '*.pl' -o -name '*.pm' \) -print0 | \
               xargs -0 -P $(nproc) -I {} sh -c "export PATH='$PERLTIDY_BIN:\$PATH'; echo 'Stripping {}...' && perltidy --delete-block-comments --delete-side-comments --delete-pod --backup-and-modify-in-place --backup-file-extension='/' '{}'"
           fi
