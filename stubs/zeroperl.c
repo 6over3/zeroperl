@@ -83,6 +83,115 @@ extern int __real_access(const char *path, int flags);
 extern int __real_stat(const char *restrict path,
                        struct stat *restrict statbuf);
 extern int __real_fstat(int fd, struct stat *statbuf);
+extern ssize_t __real_write(int fd, const void *buf, size_t count);
+
+//! Buffer for building formatted output strings
+static char printf_buffer[2048];
+
+//! Override printf to redirect to DEBUG_LOG
+__attribute__((noinline)) int printf(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  int result = vsnprintf(printf_buffer, sizeof(printf_buffer), format, args);
+  va_end(args);
+  
+  if (result > 0) {
+    DEBUG_LOG_INTERNAL(printf_buffer);
+  }
+  
+  return result;
+}
+
+//! Override fprintf to redirect to DEBUG_LOG (ignore the FILE* parameter)
+__attribute__((noinline)) int fprintf(FILE *stream, const char *format, ...) {
+  (void)stream; // Ignore which stream was requested
+  
+  va_list args;
+  va_start(args, format);
+  int result = vsnprintf(printf_buffer, sizeof(printf_buffer), format, args);
+  va_end(args);
+  
+  if (result > 0) {
+    DEBUG_LOG_INTERNAL(printf_buffer);
+  }
+  
+  return result;
+}
+
+//! Override vfprintf for variadic logging functions
+__attribute__((noinline)) int vfprintf(FILE *stream, const char *format, va_list ap) {
+  (void)stream; // Ignore which stream was requested
+  
+  int result = vsnprintf(printf_buffer, sizeof(printf_buffer), format, ap);
+  
+  if (result > 0) {
+    DEBUG_LOG_INTERNAL(printf_buffer);
+  }
+  
+  return result;
+}
+
+//! Override fputs to redirect to DEBUG_LOG
+__attribute__((noinline)) int fputs(const char *s, FILE *stream) {
+  (void)stream; // Ignore which stream was requested
+  
+  if (s) {
+    DEBUG_LOG_INTERNAL(s);
+    return strlen(s);
+  }
+  
+  return EOF;
+}
+
+//! Override fputc to redirect to DEBUG_LOG (character by character)
+__attribute__((noinline)) int fputc(int c, FILE *stream) {
+  (void)stream; // Ignore which stream was requested
+  
+  char buf[2] = {(char)c, '\0'};
+  DEBUG_LOG_INTERNAL(buf);
+  
+  return c;
+}
+
+//! Override puts to redirect to DEBUG_LOG (adds newline automatically)
+__attribute__((noinline)) int puts(const char *s) {
+  if (s) {
+    DEBUG_LOG_INTERNAL(s);
+    DEBUG_LOG_INTERNAL("\n");
+    return strlen(s) + 1;
+  }
+  
+  return EOF;
+}
+
+//! Override perror to redirect to DEBUG_LOG
+__attribute__((noinline)) void perror(const char *s) {
+  if (s && s[0] != '\0') {
+    snprintf(printf_buffer, sizeof(printf_buffer), "%s: %s\n", s, strerror(errno));
+  } else {
+    snprintf(printf_buffer, sizeof(printf_buffer), "%s\n", strerror(errno));
+  }
+  
+  DEBUG_LOG_INTERNAL(printf_buffer);
+}
+
+//! Override write for file descriptor 1 (stdout) and 2 (stderr)
+__attribute__((noinline)) ssize_t write(int fd, const void *buf, size_t count) {
+  // Only intercept writes to stdout and stderr
+  if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+    if (buf && count > 0) {
+      // Ensure null-termination for DEBUG_LOG_INTERNAL
+      size_t safe_len = (count < sizeof(printf_buffer) - 1) ? count : sizeof(printf_buffer) - 1;
+      memcpy(printf_buffer, buf, safe_len);
+      printf_buffer[safe_len] = '\0';
+      DEBUG_LOG_INTERNAL(printf_buffer);
+    }
+    return (ssize_t)count;
+  }
+  
+  // For other file descriptors, use the real write (wrapped version)
+  return __wrap_write(fd, buf, count);
+}
 
 //! Maximum number of file descriptors to track
 #ifndef FD_MAX_TRACK
@@ -329,6 +438,11 @@ static SFS_Stat_Result sfs_stat(const char *path, int fd, struct stat *stbuf) {
     stbuf->st_mode = S_IFREG;
     return SFS_STAT_OURS;
   }
+}
+
+// Create a separate wrapper name for internal use
+__attribute__((noinline)) ssize_t __wrap_write(int fd, const void *buf, size_t count) {
+  return __real_write(fd, buf, count);
 }
 
 //! Wrapper for fopen: tries SFS first, then falls back to real fopen
