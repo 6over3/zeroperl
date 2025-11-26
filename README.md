@@ -30,12 +30,12 @@ Output in `./output/`:
 
 **Docker:**
 ```bash
-docker build --build-arg PERL_VERSION=5.40.0 --build-arg BUILD_EXIFTOOL=false -t zeroperl .
+docker build --build-arg PERL_VERSION=5.42.0 --build-arg BUILD_EXIFTOOL=false -t zeroperl .
 ```
 
 **Apple Container:**
 ```bash
-container build --build-arg PERL_VERSION=5.40.0 --build-arg BUILD_EXIFTOOL=false -t zeroperl .
+container build --build-arg PERL_VERSION=5.42.0 --build-arg BUILD_EXIFTOOL=false -t zeroperl .
 ```
 
 <details>
