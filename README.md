@@ -67,6 +67,16 @@ docker build --target final -t zeroperl .
 container build --target final -t zeroperl .
 ```
 
+## Testing
+
+The easiest way to test a new build of `zeroperl.wasm` is to clone the TypeScript wrapper and run its test suite:
+
+```bash
+git clone https://github.com/6over3/zeroperl-ts
+```
+
+See the [zeroperl-ts README](https://github.com/6over3/zeroperl-ts) for details.
+
 ## Usage
 
 > **Note:** The first argument passed to Perl **must** be `zeroperl`.
