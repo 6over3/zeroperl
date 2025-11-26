@@ -1,21 +1,8 @@
-diff --git a/perl.h b/perl.h
-index 9788654975..c4decdbd2e 100644
---- a/perl.h
-+++ b/perl.h
-@@ -1368,7 +1368,7 @@ typedef enum {
- 
- #endif
- 
--#include <setjmp.h>
-+#include "setjmp.h"
- 
- #ifdef I_SYS_PARAM
- #   ifdef PARAM_NEEDS_TYPES
-diff --git a/pp_sys.c b/pp_sys.c
-index ed0ec79a73..94ddcdcde2 100644
---- a/pp_sys.c
-+++ b/pp_sys.c
-@@ -2277,7 +2277,7 @@ PP_wrapped(pp_syswrite, 0, 1)
+diff --git forkSrcPrefix/pp_sys.c forkDstPrefix/pp_sys.c
+index 881fc7baa497fb43f8d233ec24aca934dc586ceb..b554989dfe040910dd524668bcc92a93552d7efc 100644
+--- forkSrcPrefix/pp_sys.c
++++ forkDstPrefix/pp_sys.c
+@@ -2269,7 +2269,7 @@ PP_wrapped(pp_syswrite, 0, 1)
          if (MARK >= SP) {
              length = blen;
          } else {
@@ -24,16 +11,16 @@ index ed0ec79a73..94ddcdcde2 100644
              length = (Size_t)SvNVx(*++MARK);
  #else
              length = (Size_t)SvIVx(*++MARK);
-@@ -2323,7 +2323,7 @@ PP_wrapped(pp_syswrite, 0, 1)
+@@ -2311,7 +2311,7 @@ PP_wrapped(pp_syswrite, 0, 1)
+         goto say_undef;
      SP = ORIGMARK;
  
-     Safefree(tmpbuf);
 -#if Size_t_size > IVSIZE
 +#if Size_t_size > IVSIZE || defined(__wasi__)
      PUSHn(retval);
  #else
      PUSHi(retval);
-@@ -2429,7 +2429,7 @@ PP_wrapped(pp_tell, MAXARG, 0)
+@@ -2416,7 +2416,7 @@ PP_wrapped(pp_tell, MAXARG, 0)
          RETURN;
      }
  
@@ -42,7 +29,7 @@ index ed0ec79a73..94ddcdcde2 100644
      PUSHn( (NV)do_tell(gv) );
  #else
      PUSHi( (IV)do_tell(gv) );
-@@ -2444,7 +2444,7 @@ PP_wrapped(pp_sysseek, 3, 0)
+@@ -2431,7 +2431,7 @@ PP_wrapped(pp_sysseek, 3, 0)
  {
      dSP;
      const int whence = POPi;
@@ -51,7 +38,7 @@ index ed0ec79a73..94ddcdcde2 100644
      const Off_t offset = (Off_t)SvNVx(POPs);
  #else
      const Off_t offset = (Off_t)SvIVx(POPs);
-@@ -2456,7 +2456,7 @@ PP_wrapped(pp_sysseek, 3, 0)
+@@ -2443,7 +2443,7 @@ PP_wrapped(pp_sysseek, 3, 0)
      if (io) {
          const MAGIC * const mg = SvTIED_mg((const SV *)io, PERL_MAGIC_tiedscalar);
          if (mg) {
@@ -60,7 +47,7 @@ index ed0ec79a73..94ddcdcde2 100644
              SV *const offset_sv = newSVnv((NV) offset);
  #else
              SV *const offset_sv = newSViv(offset);
-@@ -2475,7 +2475,7 @@ PP_wrapped(pp_sysseek, 3, 0)
+@@ -2462,7 +2462,7 @@ PP_wrapped(pp_sysseek, 3, 0)
              PUSHs(&PL_sv_undef);
          else {
              SV* const sv = sought ?
@@ -69,7 +56,7 @@ index ed0ec79a73..94ddcdcde2 100644
                  newSVnv((NV)sought)
  #else
                  newSViv(sought)
-@@ -2497,7 +2497,7 @@ PP_wrapped(pp_truncate, 2, 0)
+@@ -2484,7 +2484,7 @@ PP_wrapped(pp_truncate, 2, 0)
      /* XXX Configure probe for the length type of *truncate() needed XXX */
      Off_t len;
  
@@ -78,7 +65,7 @@ index ed0ec79a73..94ddcdcde2 100644
      len = (Off_t)POPn;
  #else
      len = (Off_t)POPi;
-@@ -3278,7 +3278,7 @@ PP_wrapped(pp_stat, !(PL_op->op_flags & OPf_REF), 0)
+@@ -3265,7 +3265,7 @@ PP_wrapped(pp_stat, !(PL_op->op_flags & OPf_REF), 0)
  #else
          PUSHs(newSVpvs_flags("", SVs_TEMP));
  #endif
@@ -87,7 +74,7 @@ index ed0ec79a73..94ddcdcde2 100644
          mPUSHn(PL_statcache.st_size);
  #else
          mPUSHi(PL_statcache.st_size);
-@@ -3535,7 +3535,7 @@ PP(pp_ftis)
+@@ -3522,7 +3522,7 @@ PP(pp_ftis)
          dTARGET;
          switch (op_type) {
          case OP_FTSIZE:

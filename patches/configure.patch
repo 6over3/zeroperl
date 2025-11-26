@@ -1,0 +1,176 @@
+From 73978d8d12e6f1eeb7875d6cd90dddf1035707b4 Mon Sep 17 00:00:00 2001
+From: Karl Williamson <khw@cpan.org>
+Date: Tue, 25 Nov 2025 06:27:42 -0700
+Subject: [PATCH 1/2] Configure: Allow LC_ALL syntax override
+
+Fixes #22992
+
+The problem here had to do with cross-compilation.  There was no way to
+override Perl's calculation of how LC_ALL is represented.  I had not put
+one in because it is hard to get it right manually.  But this doesn't
+work in cross-compilation; it's better to have a difficult-to-get-right
+way than no way at all.
+
+I don't know where to document this.  You need to specify in a hints
+file:
+
+    perl_lc_all_separator="correct-value"
+    perl_lc_all_category_positions_init="correct-value"
+---
+ Configure | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/Configure b/Configure
+index ef2257f43838..7e7501fb2fbf 100755
+--- a/Configure
++++ b/Configure
+@@ -17484,6 +17484,8 @@ $rm_try
+     esac
+ esac
+ 
++case "$perl_lc_all_separator$perl_lc_all_category_positions_init" in
++  "")
+ : Check the syntax of LC_ALL when categories are set to different locales
+ echo " "
+ $echo "Checking the syntax of LC_ALL when categories are set to different locales..." >&4
+@@ -17861,6 +17863,14 @@ $rm -f try try.*
+           d_perl_lc_all_uses_name_value_pairs="$define"
+ ;;
+ esac
++;;
++
++  *)    # Has an lc_all definition passed-in
++     d_perl_lc_all_separator="$define"
++     d_perl_lc_all_category_positions_init="$define"
++     d_perl_lc_all_uses_name_value_pairs="$undef"
++     ;;
++esac
+ 
+ : see if pipe2 exists
+ set pipe2 d_pipe2
+
+From b3197ca722058fcfa07cb5571647cf8d82eaaa1a Mon Sep 17 00:00:00 2001
+From: Karl Williamson <khw@cpan.org>
+Date: Tue, 25 Nov 2025 06:49:11 -0700
+Subject: [PATCH 2/2] Configure: indent, comments
+
+Add indentation because of the previous commit
+---
+ Configure | 96 +++++++++++++++++++++++++++----------------------------
+ 1 file changed, 48 insertions(+), 48 deletions(-)
+
+diff --git a/Configure b/Configure
+index 7e7501fb2fbf..08c89bed781a 100755
+--- a/Configure
++++ b/Configure
+@@ -17486,14 +17486,14 @@ esac
+ 
+ case "$perl_lc_all_separator$perl_lc_all_category_positions_init" in
+   "")
+-: Check the syntax of LC_ALL when categories are set to different locales
+-echo " "
+-$echo "Checking the syntax of LC_ALL when categories are set to different locales..." >&4
++    : Check the syntax of LC_ALL when categories are set to different locales
++    echo " "
++    $echo "Checking the syntax of LC_ALL when categories are set to different locales..." >&4
+ 
+-case $d_setlocale in
+-    $define)
+-$rm -f try try.*
+-$cat >try.c <<'EOF'
++    case $d_setlocale in
++      $define)
++        $rm -f try try.*
++        $cat >try.c <<'EOF'
+ #include <limits.h>
+ #include <locale.h>
+ #include <stdlib.h>
+@@ -17823,47 +17823,47 @@ main (const int argc, const char ** argv)
+ 
+ #endif
+ EOF
+-set try
+-if eval $compile_ok; then
+-    output=`$run ./try 2>/dev/null`
+-    separator=`echo "$output" | $sed 1q`
+-    case $separator in
+-	"\"=;\"")
+-          d_perl_lc_all_uses_name_value_pairs="$define"
+-          d_perl_lc_all_separator="$undef"
+-            perl_lc_all_separator=
+-	  d_perl_lc_all_category_positions_init="$undef"
+-	    perl_lc_all_category_positions_init=
+-	    ;;
+-	"") d_perl_lc_all_uses_name_value_pairs="$undef"
+-            d_perl_lc_all_separator="$undef"
+-              perl_lc_all_separator=
+-	    d_perl_lc_all_category_positions_init="$undef"
+-	      perl_lc_all_category_positions_init=
+-	    ;;
+-        *)  d_perl_lc_all_uses_name_value_pairs="$undef"
+-            d_perl_lc_all_separator="$define"
+-              perl_lc_all_separator="$separator"
+-	    d_perl_lc_all_category_positions_init="$define"
+-	      perl_lc_all_category_positions_init=`echo "$output" | sed -n 2p`
+-	    ;;
+-    esac
+-else
+-    $echo "Failed to compile lc_all probe" >&4
+-fi
+-$rm -f try try.*
+-;;
+-*)        d_perl_lc_all_separator="$undef"
+-            perl_lc_all_separator=
+-	  d_perl_lc_all_category_positions_init="$undef"
+-	    perl_lc_all_category_positions_init=
+-
+-          # No setlocale(), but using this default allows our code to compile
+-          # and run without having to have a bunch more #ifdef's
+-          d_perl_lc_all_uses_name_value_pairs="$define"
+-;;
+-esac
+-;;
++        set try
++        if eval $compile_ok; then
++            output=`$run ./try 2>/dev/null`
++            separator=`echo "$output" | $sed 1q`
++            case $separator in
++                "\"=;\"")
++                  d_perl_lc_all_uses_name_value_pairs="$define"
++                  d_perl_lc_all_separator="$undef"
++                    perl_lc_all_separator=
++                  d_perl_lc_all_category_positions_init="$undef"
++                    perl_lc_all_category_positions_init=
++                    ;;
++                "") d_perl_lc_all_uses_name_value_pairs="$undef"
++                    d_perl_lc_all_separator="$undef"
++                      perl_lc_all_separator=
++                    d_perl_lc_all_category_positions_init="$undef"
++                      perl_lc_all_category_positions_init=
++                    ;;
++                *)  d_perl_lc_all_uses_name_value_pairs="$undef"
++                    d_perl_lc_all_separator="$define"
++                      perl_lc_all_separator="$separator"
++                    d_perl_lc_all_category_positions_init="$define"
++                      perl_lc_all_category_positions_init=`echo "$output" | sed -n 2p`
++                    ;;
++            esac
++        else
++            $echo "Failed to compile lc_all probe" >&4
++        fi
++        $rm -f try try.*
++        ;;
++    *)        d_perl_lc_all_separator="$undef"
++                perl_lc_all_separator=
++              d_perl_lc_all_category_positions_init="$undef"
++                perl_lc_all_category_positions_init=
++
++              # No setlocale(), but using this default allows our code to
++              # compile and run without having to have a bunch more #ifdef's
++              d_perl_lc_all_uses_name_value_pairs="$define"
++    ;;
++    esac    # case on $d_setlocale
++  ;;
+ 
+   *)    # Has an lc_all definition passed-in
+      d_perl_lc_all_separator="$define"

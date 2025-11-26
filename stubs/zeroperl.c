@@ -608,23 +608,19 @@ void zeroperl_set_host_error(const char *error) {
 }
 
 ZEROPERL_API("zeroperl_get_host_error")
-const char *zeroperl_get_host_error(void) {
-  return host_error_buf;
-}
+const char *zeroperl_get_host_error(void) { return host_error_buf; }
 
 ZEROPERL_API("zeroperl_clear_host_error")
-void zeroperl_clear_host_error(void) {
-  host_error_buf[0] = '\0';
-}
+void zeroperl_clear_host_error(void) { host_error_buf[0] = '\0'; }
 
 //! XS callback that dispatches to host functions
 static XS(xs_host_dispatch) {
   dXSARGS;
-  
+
   int32_t func_id = (int32_t)CvXSUBANY(cv).any_i32;
-  
+
   zeroperl_clear_host_error();
-  
+
   zeroperl_value **argv = NULL;
   if (items > 0) {
     argv = (zeroperl_value **)malloc(sizeof(zeroperl_value *) * items);
@@ -634,9 +630,9 @@ static XS(xs_host_dispatch) {
       SvREFCNT_inc(argv[i]->sv);
     }
   }
-  
+
   zeroperl_value *result = host_call_function(func_id, items, argv);
-  
+
   if (argv) {
     for (int i = 0; i < items; i++) {
       SvREFCNT_dec(argv[i]->sv);
@@ -644,20 +640,20 @@ static XS(xs_host_dispatch) {
     }
     free(argv);
   }
-  
+
   if (!result || !result->sv) {
     if (result) {
       free(result);
     }
-    
+
     const char *host_err = zeroperl_get_host_error();
     if (host_err && host_err[0] != '\0') {
       croak("%s", host_err);
     }
-    
+
     XSRETURN_UNDEF;
   }
-  
+
   SV *sv = result->sv;
   SvREFCNT_inc(sv);
   free(result);
@@ -780,10 +776,17 @@ static int zeroperl_run_file_callback(int argc, char **argv) {
     return 1;
   }
 
-  if (access(ctx->data.run_file.filepath, F_OK) != 0) {
-    const char *err = "File not found";
-    strncpy(zero_perl_error_buf, err, sizeof(zero_perl_error_buf) - 1);
-    zero_perl_error_buf[sizeof(zero_perl_error_buf) - 1] = '\0';
+  const char *filepath = ctx->data.run_file.filepath;
+
+  if (access(filepath, R_OK) != 0) {
+    if (access(filepath, F_OK) != 0) {
+      snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+               "Can't open perl script \"%s\": No such file or directory",
+               filepath);
+    } else {
+      snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+               "Can't open perl script \"%s\": Permission denied", filepath);
+    }
     ctx->result = 1;
     return 1;
   }
@@ -791,8 +794,65 @@ static int zeroperl_run_file_callback(int argc, char **argv) {
   zeroperl_clear_error_internal();
 
   dTHX;
-  dSP;
 
+  FILE *fp = fopen(filepath, "r");
+  if (!fp) {
+    snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+             "Can't open perl script \"%s\": %s", filepath, strerror(errno));
+    ctx->result = 1;
+    return 1;
+  }
+
+  if (fseek(fp, 0, SEEK_END) != 0) {
+    fclose(fp);
+    snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+             "Can't seek in perl script \"%s\": %s", filepath, strerror(errno));
+    ctx->result = 1;
+    return 1;
+  }
+
+  long file_size = ftell(fp);
+  if (file_size < 0) {
+    fclose(fp);
+    snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+             "Can't determine size of perl script \"%s\"", filepath);
+    ctx->result = 1;
+    return 1;
+  }
+
+  if (fseek(fp, 0, SEEK_SET) != 0) {
+    fclose(fp);
+    snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+             "Can't seek in perl script \"%s\": %s", filepath, strerror(errno));
+    ctx->result = 1;
+    return 1;
+  }
+
+  char *code = (char *)malloc((size_t)file_size + 1);
+  if (!code) {
+    fclose(fp);
+    strncpy(zero_perl_error_buf, "Out of memory reading perl script",
+            sizeof(zero_perl_error_buf) - 1);
+    zero_perl_error_buf[sizeof(zero_perl_error_buf) - 1] = '\0';
+    ctx->result = 1;
+    return 1;
+  }
+
+  size_t bytes_read = fread(code, 1, (size_t)file_size, fp);
+  int read_error = ferror(fp);
+  fclose(fp);
+
+  if (read_error) {
+    free(code);
+    snprintf(zero_perl_error_buf, sizeof(zero_perl_error_buf),
+             "Error reading perl script \"%s\"", filepath);
+    ctx->result = 1;
+    return 1;
+  }
+
+  code[bytes_read] = '\0';
+
+  dSP;
   ENTER;
   SAVETMPS;
 
@@ -804,11 +864,11 @@ static int zeroperl_run_file_callback(int argc, char **argv) {
     }
   }
 
-  char eval_code[512];
-  snprintf(eval_code, sizeof(eval_code), "do '%s'",
-           ctx->data.run_file.filepath);
+  sv_setpv(get_sv("0", GV_ADD), filepath);
 
-  SV *result = eval_pv(eval_code, FALSE);
+  eval_pv(code, FALSE);
+
+  free(code);
 
   if (SvTRUE(ERRSV)) {
     zeroperl_capture_error();
@@ -2095,13 +2155,10 @@ zeroperl_result *zeroperl_call(const char *name, zeroperl_context_type context,
       .op_type = ZEROPERL_OP_CALL,
       .result = 0,
       .data.call = {
-          .name = name,
-          .argc = argc,
-          .argv = argv,
-          .context = context}};
+          .name = name, .argc = argc, .argv = argv, .context = context}};
 
   int status = asyncjmp_rt_start(zeroperl_call_callback, 0, (char **)&ctx);
-  
+
   if (status != 0) {
     return NULL;
   }

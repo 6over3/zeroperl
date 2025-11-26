@@ -65,6 +65,7 @@ struct asyncjmp_try_catch
     asyncjmp_try_catch_func_t try_f;
     asyncjmp_try_catch_func_t catch_f;
     void *context;
+    void *stack_pointer;
     int state;
 };
 

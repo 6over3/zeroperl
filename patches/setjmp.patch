@@ -1,0 +1,13 @@
+diff --git forkSrcPrefix/perl.h forkDstPrefix/perl.h
+index 5aaeea0cc2231c3c4401ce47a7f1bafdfae75876..34e6559f1d60ead141ef6ba977d7d8abe334bb28 100644
+--- forkSrcPrefix/perl.h
++++ forkDstPrefix/perl.h
+@@ -1368,7 +1368,7 @@ typedef enum {
+ 
+ #endif
+ 
+-#include <setjmp.h>
++#include "setjmp.h"
+ 
+ #ifdef I_SYS_PARAM
+ #   ifdef PARAM_NEEDS_TYPES
