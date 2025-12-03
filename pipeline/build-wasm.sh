@@ -100,6 +100,7 @@ wasic \
     lib/auto/List/Util/Util.a \
     lib/auto/Fcntl/Fcntl.a \
     lib/auto/Opcode/Opcode.a \
+    lib/auto/Time/HiRes/HiRes.a \
     $(cat ext.libs) \
     -lm -lwasi-emulated-signal -lwasi-emulated-getpid \
     -lwasi-emulated-process-clocks -lwasi-emulated-mman \

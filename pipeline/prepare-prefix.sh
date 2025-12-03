@@ -31,3 +31,4 @@ fi
 
 mkdir -p "$REPO_DIR/gen"
 node "$REPO_DIR/tools/sfs.js" -i /zeroperl -o "$REPO_DIR/gen/zeroperl.h" --prefix /zeroperl
+

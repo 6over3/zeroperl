@@ -219,7 +219,7 @@ static int sfs_open(const char *path, FILE **outfp) {
     return -1;
   }
 
-  FILE *fp = fmemopen((void *)start, size, "r");
+  FILE *fp = fmemopen((void *)start, size, "rb");
   if (!fp) {
     if (outfp)
       *outfp = NULL;
@@ -2237,6 +2237,7 @@ EXTERN_C void boot_Cwd(pTHX_ CV *cv);
 EXTERN_C void boot_List__Util(pTHX_ CV *cv);
 EXTERN_C void boot_Fcntl(pTHX_ CV *cv);
 EXTERN_C void boot_Opcode(pTHX_ CV *cv);
+EXTERN_C void boot_Time__HiRes(pTHX_ CV* cv);
 
 static void xs_init(pTHX) {
   static const char file[] = __FILE__;
@@ -2280,4 +2281,5 @@ static void xs_init(pTHX) {
   newXS("List::Util::bootstrap", boot_List__Util, file);
   newXS("Fcntl::bootstrap", boot_Fcntl, file);
   newXS("Opcode::bootstrap", boot_Opcode, file);
+  newXS("Time::HiRes::bootstrap", boot_Time__HiRes, file);
 }
