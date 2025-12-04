@@ -16,7 +16,7 @@ cc='wasic'
 ld='wasic'
 ar='__WASI_SDK_PATH__/bin/llvm-ar'
 ranlib='__WASI_SDK_PATH__/bin/llvm-ranlib'
-optimize='-O2'
+optimize='-O3'
 
 # Cross-compilation
 hostperl='__NATIVE_DIR__/miniperl'
@@ -201,10 +201,10 @@ d_ftello64='undef'
 d_readdir64_r='undef'
 
 # Disabled extensions
-noextensions='Socket POSIX Devel/Peek Sys/Syslog B threads threads/shared IPC/SysV SDBM_File Storable'
+noextensions='Socket POSIX Devel/Peek Sys/Syslog B threads threads/shared IPC/SysV SDBM_File Storable File/DosGlob'
 
 # Static extensions to build
-static_ext='mro File/DosGlob Time/HiRes File/Glob Sys/Hostname PerlIO/via PerlIO/mmap PerlIO/encoding attributes Unicode/Normalize Unicode/Collate re Digest/MD5 Digest/SHA Math/BigInt/FastCalc Data/Dumper I18N/Langinfo Time/Piece IO Hash/Util/FieldHash Hash/Util Filter/Util/Call Encode/Unicode Encode Encode/JP Encode/KR Encode/EBCDIC Encode/CN Encode/Symbol Encode/Byte Encode/TW Compress/Raw/Zlib Compress/Raw/Bzip2 MIME/Base64 Cwd List/Util Fcntl Opcode'
+static_ext='mro Time/HiRes File/Glob Sys/Hostname PerlIO/via PerlIO/mmap PerlIO/encoding attributes Unicode/Normalize Unicode/Collate re Digest/MD5 Digest/SHA Math/BigInt/FastCalc Data/Dumper I18N/Langinfo Time/Piece IO Hash/Util/FieldHash Hash/Util Filter/Util/Call Encode/Unicode Encode Encode/JP Encode/KR Encode/EBCDIC Encode/CN Encode/Symbol Encode/Byte Encode/TW Compress/Raw/Zlib Compress/Raw/Bzip2 MIME/Base64 Cwd List/Util Fcntl Opcode'
 
 # Compiler/linker flags
 ccflags='-DBIG_TIME -DNO_MATHOMS -Wno-int-conversion -Wno-implicit-function-declaration -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID -D_GNU_SOURCE -D_POSIX_C_SOURCE -Wno-null-pointer-arithmetic -D_WASI_EMULATED_SIGNAL -include __WASI_SDK_PATH__/share/wasi-sysroot/include/wasm32-wasi/fcntl.h -I__STUBS_DIR__'

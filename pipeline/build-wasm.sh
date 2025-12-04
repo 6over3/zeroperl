@@ -64,7 +64,6 @@ wasic \
     -Wl,--whole-archive libperl.a -Wl,--no-whole-archive \
     -Wl,--wrap=fopen -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=read \
     -Wl,--wrap=lseek -Wl,--wrap=stat -Wl,--wrap=fstat \
-    lib/auto/File/DosGlob/DosGlob.a \
     lib/auto/File/Glob/Glob.a \
     lib/auto/Sys/Hostname/Hostname.a \
     lib/auto/PerlIO/via/via.a \
