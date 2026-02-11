@@ -19,6 +19,10 @@ if [ "$BUILD_EXIFTOOL" = "true" ]; then
     cp -R "$SITE_PERL/Image/"* "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/Image/"
 fi
 
+# Copy internal modules
+mkdir -p "/zeroperl/lib/$PERL_VERSION/ZeroPerl"
+cp "$REPO_DIR/lib/ZeroPerl/Web.pm" "/zeroperl/lib/$PERL_VERSION/ZeroPerl/"
+
 node "$REPO_DIR/tools/delete.js" "$REPO_DIR/tools/delete.txt" /zeroperl "$PERL_VERSION"
 
 if [ "$TRIM" = "true" ]; then

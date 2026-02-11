@@ -21,6 +21,7 @@ wasic -flto -O3 -c setjmp_core.S -o setjmp_core.o
 
 cd "$WASM_DIR"
 cp "$REPO_DIR/stubs/zeroperl.c" .
+cp "$REPO_DIR/stubs/zeroperl_web.c" .
 
 CFLAGS="-c -O3 -flto -DNO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID \
 -D_GNU_SOURCE -D_POSIX_C_SOURCE -DBIG_TIME -Wno-implicit-function-declaration \
@@ -30,6 +31,7 @@ CFLAGS="-c -O3 -flto -DNO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULAT
 -I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
 
 wasic $CFLAGS zeroperl.c -o zeroperl.o
+wasic $CFLAGS zeroperl_web.c -o zeroperl_web.o
 wasic $CFLAGS "$REPO_DIR/stubs/stubs.c" -o stubs.o
 
 CFLAGS_DATA="-c -O0 -std=c23 \
@@ -59,7 +61,7 @@ wasic \
     -lwasi-emulated-mman \
     -Wl,--strip-all \
     -Wl,--allow-undefined \
-    zeroperl.o stubs.o zeroperl_data.o \
+    zeroperl.o stubs.o zeroperl_data.o zeroperl_web.o \
     -Wl,--whole-archive "$REPO_DIR/stubs/libasyncjmp.a" -Wl,--no-whole-archive \
     -Wl,--whole-archive libperl.a -Wl,--no-whole-archive \
     -Wl,--wrap=fopen -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=read \
