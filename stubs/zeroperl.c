@@ -18,7 +18,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-
 #define STRINGIZE_HELPER(x) #x
 #define STRINGIZE(x) STRINGIZE_HELPER(x)
 #include <wasi/api.h>
