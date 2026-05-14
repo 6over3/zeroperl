@@ -34,6 +34,10 @@
 #define ZEROPERL_IMPORT(name)
 #endif
 
+#ifndef ZEROPERL_ENABLE_HOST_CALLBACKS
+#define ZEROPERL_ENABLE_HOST_CALLBACKS 0
+#endif
+
 //! Writes the given string literal directly to STDERR via __wasi_fd_write
 //! Avoids calls to printf or other asyncified C library functions
 #define DEBUG_LOG_INTERNAL(msg)                                                \
@@ -551,9 +555,11 @@ typedef struct {
 } zeroperl_context;
 
 //! Host-implemented function for calling back into the host environment
+#if ZEROPERL_ENABLE_HOST_CALLBACKS
 ZEROPERL_IMPORT("call_host_function")
 zeroperl_value *host_call_function(int32_t func_id, int32_t argc,
                                    zeroperl_value **argv);
+#endif
 
 //! Registry for host function IDs
 typedef struct {
@@ -631,7 +637,11 @@ static XS(xs_host_dispatch) {
     }
   }
 
+#if ZEROPERL_ENABLE_HOST_CALLBACKS
   zeroperl_value *result = host_call_function(func_id, items, argv);
+#else
+  (void)func_id;
+#endif
 
   if (argv) {
     for (int i = 0; i < items; i++) {
@@ -641,6 +651,9 @@ static XS(xs_host_dispatch) {
     free(argv);
   }
 
+#if !ZEROPERL_ENABLE_HOST_CALLBACKS
+  croak("Host callbacks are not enabled in this zeroperl build");
+#else
   if (!result || !result->sv) {
     if (result) {
       free(result);
@@ -659,6 +672,7 @@ static XS(xs_host_dispatch) {
   free(result);
   ST(0) = sv_2mortal(sv);
   XSRETURN(1);
+#endif
 }
 
 //! Internal callback for initialization

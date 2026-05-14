@@ -34,6 +34,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable-host-callbacks:
+        description: "Import env.call_host_function for host-registered Perl callbacks"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -53,6 +58,7 @@ jobs:
             --build-arg INITIAL_MEMORY=${{ inputs.initial-memory }} \
             --build-arg TRIM=${{ inputs.trim }} \
             --build-arg ASYNCIFY=${{ inputs.asyncify }} \
+            --build-arg ENABLE_HOST_CALLBACKS=${{ inputs.enable-host-callbacks }} \
             -t zeroperl:latest .
 
       - name: Extract artifacts

@@ -49,9 +49,16 @@ container build --build-arg PERL_VERSION=5.42.0 --build-arg BUILD_EXIFTOOL=false
 | `STACK_SIZE` | `8388608` | WASM stack (bytes) |
 | `INITIAL_MEMORY` | `33554432` | WASM initial memory (bytes) |
 | `ASYNCIFY` | `true` | Enable asyncify |
+| `ENABLE_HOST_CALLBACKS` | `false` | Import `env.call_host_function` for host-registered Perl callbacks |
 | `TRIM` | `true` | Strip unused modules |
 
 </details>
+
+By default, the generated `zeroperl.wasm` only requires WASI imports, matching
+the browser wrapper used by `perl.objex.ai/zeroperl-1.0.0.wasm`. If your host
+uses `zeroperl_register_function` or `zeroperl_register_method`, build with
+`--build-arg ENABLE_HOST_CALLBACKS=true` and provide `env.call_host_function`
+when instantiating the module.
 
 ### Iterating on stubs/zeroperl.c
 

@@ -7,6 +7,15 @@ REPO_DIR="${REPO_DIR:-/build/repo}"
 STACK_SIZE="${STACK_SIZE:-8388608}"
 INITIAL_MEMORY="${INITIAL_MEMORY:-33554432}"
 ASYNCIFY="${ASYNCIFY:-true}"
+ENABLE_HOST_CALLBACKS="${ENABLE_HOST_CALLBACKS:-false}"
+
+if [ "$ENABLE_HOST_CALLBACKS" = "true" ]; then
+    HOST_CALLBACKS_DEFINE=1
+    ASYNCIFY_IMPORTS="wasi_snapshot_preview1.fd_read,env.call_host_function"
+else
+    HOST_CALLBACKS_DEFINE=0
+    ASYNCIFY_IMPORTS="wasi_snapshot_preview1.fd_read"
+fi
 
 export PATH="$REPO_DIR/wasi-bin:$PATH"
 
@@ -31,6 +40,7 @@ CFLAGS="-c -O3 -flto -DNO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULAT
 -D_GNU_SOURCE -D_POSIX_C_SOURCE -DBIG_TIME -Wno-implicit-function-declaration \
 -Wno-null-pointer-arithmetic -Wno-incomplete-setjmp-declaration -Wno-incompatible-library-redeclaration \
 -Wno-int-conversion -D_WASI_EMULATED_SIGNAL \
+-DZEROPERL_ENABLE_HOST_CALLBACKS=$HOST_CALLBACKS_DEFINE \
 -include /opt/wasi-sdk/share/wasi-sysroot/include/wasm32-wasi/fcntl.h \
 -I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
 
@@ -116,7 +126,7 @@ mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
 if [ "$ASYNCIFY" = "true" ]; then
     wasm-opt zeroperl_reactor.wasm -O3 --strip-debug --enable-bulk-memory \
         --enable-nontrapping-float-to-int --asyncify \
-        --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read,env.call_host_function \
+        --pass-arg=asyncify-imports@$ASYNCIFY_IMPORTS \
         ${WASM_OPT_FLAGS} \
         -o zeroperl.wasm
 else
