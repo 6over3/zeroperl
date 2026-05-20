@@ -108,7 +108,7 @@ COPY stubs/ /build/repo/stubs/
 RUN /build/repo/pipeline/build-wasm.sh
 
 RUN mkdir -p /artifacts && \
-    cp /build/wasm/config.h /build/wasm/zeroperl.wasm /build/wasm/zeroperl_reactor.wasm /artifacts/ && \
+    cp /build/wasm/config.h /build/wasm/zeroperl.wasm /build/wasm/zeroperl_reactor.wasm /build/wasm/zeroperl_command.wasm /artifacts/ && \
     cp -r /zeroperl /artifacts/perl-wasi-prefix && \
     [ "${BUILD_EXIFTOOL}" = "true" ] && [ -f /build/repo/exiftool.min.pl ] && \
         cp /build/repo/exiftool.min.pl /artifacts/ || true

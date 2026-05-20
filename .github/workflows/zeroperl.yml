@@ -74,6 +74,7 @@ jobs:
           path: |
             output/zeroperl.wasm
             output/zeroperl_reactor.wasm
+            output/zeroperl_command.wasm
             output/config.h
 
       - name: Upload Perl prefix
