@@ -23,7 +23,7 @@ container run --rm -v $(pwd)/output:/output zeroperl cp -r /artifacts/. /output/
 Output in `./output/`:
 - `zeroperl.wasm` — reactor with asyncify
 - `zeroperl_reactor.wasm` — reactor without asyncify
-- `zeroperl_command.wasm` — command-compatible module that exports `_start`
+- `zeroperl_command.wasm` — command-compatible module with a returnable `_start` export
 - `perl-wasi-prefix/` — Perl library prefix
 - `exiftool.min.pl` — minified ExifTool (if enabled)
 
@@ -57,9 +57,11 @@ container build --build-arg PERL_VERSION=5.42.0 --build-arg BUILD_EXIFTOOL=false
 
 By default, the generated WebAssembly modules only require WASI imports. Use
 `zeroperl.wasm` when embedding zeroperl through the exported `zeroperl_*` API.
-Use `zeroperl_command.wasm` for loaders that expect a WASI command module and
-call `instance.exports._start`, such as drop-in replacements for the hosted
-`perl.objex.ai/zeroperl-1.0.0.wasm` artifact. If your host uses
+Use `zeroperl_command.wasm` for loaders that call `instance.exports._start`,
+such as drop-in replacements for the hosted `perl.objex.ai/zeroperl-1.0.0.wasm`
+artifact. Its `_start` export reads WASI arguments but returns normally instead
+of relying on `proc_exit`, which keeps browser loaders with simple WASI shims
+from trapping after the Perl run completes. If your host uses
 `zeroperl_register_function` or `zeroperl_register_method`, build with
 `--build-arg ENABLE_HOST_CALLBACKS=true` and provide `env.call_host_function`
 when instantiating the module.

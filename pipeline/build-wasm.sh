@@ -130,6 +130,8 @@ link_zeroperl zeroperl_reactor.wasm \
     zeroperl.o stubs.o zeroperl_data.o
 
 link_zeroperl zeroperl_command_base.wasm \
+    -mexec-model=reactor \
+    -Wl,--no-entry \
     -Wl,--stack-first \
     zeroperl_main.o zeroperl.o stubs.o zeroperl_data.o
 
