@@ -42,7 +42,19 @@ async function main() {
       throw new Error("instance.exports._start is not callable");
     }
 
-    wasi.start(instance);
+    if (typeof wasi.finalizeBindings === "function") {
+      wasi.finalizeBindings(instance);
+      if (typeof instance.exports._initialize === "function") {
+        instance.exports._initialize();
+      }
+      instance.exports._start();
+    } else if (typeof instance.exports._initialize === "function") {
+      throw new Error(
+        "Node WASI.finalizeBindings is required to smoke-test a returnable _start export that also exports _initialize",
+      );
+    } else {
+      wasi.start(instance);
+    }
 
     if (typeof instance.exports.asyncify_get_state === "function") {
       const state = instance.exports.asyncify_get_state();
