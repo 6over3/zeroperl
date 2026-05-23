@@ -5,6 +5,22 @@ const os = require("node:os");
 const path = require("node:path");
 const { WASI } = require("node:wasi");
 
+function startReturnableCommand(wasi, instance) {
+  let initialized = false;
+  const wrappedExports = {
+    memory: instance.exports.memory,
+    _start() {
+      if (!initialized && typeof instance.exports._initialize === "function") {
+        initialized = true;
+        instance.exports._initialize();
+      }
+      return instance.exports._start();
+    },
+  };
+
+  return wasi.start({ exports: wrappedExports });
+}
+
 async function main() {
   const wasmPath = process.argv[2] || "output/zeroperl_command.wasm";
   const bytes = fs.readFileSync(wasmPath);
@@ -42,19 +58,7 @@ async function main() {
       throw new Error("instance.exports._start is not callable");
     }
 
-    if (typeof wasi.finalizeBindings === "function") {
-      wasi.finalizeBindings(instance);
-      if (typeof instance.exports._initialize === "function") {
-        instance.exports._initialize();
-      }
-      instance.exports._start();
-    } else if (typeof instance.exports._initialize === "function") {
-      throw new Error(
-        "Node WASI.finalizeBindings is required to smoke-test a returnable _start export that also exports _initialize",
-      );
-    } else {
-      wasi.start(instance);
-    }
+    startReturnableCommand(wasi, instance);
 
     if (typeof instance.exports.asyncify_get_state === "function") {
       const state = instance.exports.asyncify_get_state();
