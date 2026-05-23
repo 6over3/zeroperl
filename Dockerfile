@@ -46,7 +46,7 @@ RUN mkdir -p /zeroperl && chmod 777 /zeroperl
 FROM base AS native-perl
 
 ARG PERL_VERSION=5.42.0
-ARG EXIFTOOL_VERSION=13.42
+ARG EXIFTOOL_VERSION=13.58
 ARG BUILD_EXIFTOOL=true
 
 ENV PERL_VERSION=${PERL_VERSION} \
@@ -59,7 +59,7 @@ COPY pipeline/build-native-perl.sh pipeline/build-exiftool.sh /build/repo/pipeli
 RUN chmod +x /build/repo/pipeline/*.sh
 
 RUN /build/repo/pipeline/build-native-perl.sh
-RUN [ "${BUILD_EXIFTOOL}" = "true" ] && /build/repo/pipeline/build-exiftool.sh || true
+RUN if [ "${BUILD_EXIFTOOL}" = "true" ]; then /build/repo/pipeline/build-exiftool.sh; fi
 
 
 FROM native-perl AS wasi-perl
@@ -94,11 +94,13 @@ FROM wasi-perl AS final
 ARG STACK_SIZE=8388608
 ARG INITIAL_MEMORY=33554432
 ARG ASYNCIFY=true
+ARG ENABLE_HOST_CALLBACKS=false
 ARG WASM_OPT_FLAGS=""
 
 ENV STACK_SIZE=${STACK_SIZE} \
     INITIAL_MEMORY=${INITIAL_MEMORY} \
     ASYNCIFY=${ASYNCIFY} \
+    ENABLE_HOST_CALLBACKS=${ENABLE_HOST_CALLBACKS} \
     WASM_OPT_FLAGS=${WASM_OPT_FLAGS}
 
 COPY stubs/ /build/repo/stubs/
@@ -106,7 +108,7 @@ COPY stubs/ /build/repo/stubs/
 RUN /build/repo/pipeline/build-wasm.sh
 
 RUN mkdir -p /artifacts && \
-    cp /build/wasm/config.h /build/wasm/zeroperl.wasm /build/wasm/zeroperl_reactor.wasm /artifacts/ && \
+    cp /build/wasm/config.h /build/wasm/zeroperl.wasm /build/wasm/zeroperl_reactor.wasm /build/wasm/zeroperl_command.wasm /artifacts/ && \
     cp -r /zeroperl /artifacts/perl-wasi-prefix && \
     [ "${BUILD_EXIFTOOL}" = "true" ] && [ -f /build/repo/exiftool.min.pl ] && \
         cp /build/repo/exiftool.min.pl /artifacts/ || true

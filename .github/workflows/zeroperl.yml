@@ -10,7 +10,7 @@ on:
       exiftool-version:
         description: "Version of ExifTool to build"
         required: false
-        default: "13.42"
+        default: "13.58"
       build-exiftool:
         description: "Whether to build ExifTool"
         required: false
@@ -34,6 +34,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable-host-callbacks:
+        description: "Import env.call_host_function for host-registered Perl callbacks"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -53,6 +58,7 @@ jobs:
             --build-arg INITIAL_MEMORY=${{ inputs.initial-memory }} \
             --build-arg TRIM=${{ inputs.trim }} \
             --build-arg ASYNCIFY=${{ inputs.asyncify }} \
+            --build-arg ENABLE_HOST_CALLBACKS=${{ inputs.enable-host-callbacks }} \
             -t zeroperl:latest .
 
       - name: Extract artifacts
@@ -61,6 +67,12 @@ jobs:
           docker run --rm -v $PWD/output:/output zeroperl:latest cp -r /artifacts/. /output/
           ls -la output/
 
+      - name: Smoke-test command artifact
+        if: ${{ inputs['enable-host-callbacks'] == false }}
+        env:
+          NODE_OPTIONS: --no-warnings
+        run: node tools/smoke-zeroperl-command.js output/zeroperl_command.wasm
+
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -68,6 +80,7 @@ jobs:
           path: |
             output/zeroperl.wasm
             output/zeroperl_reactor.wasm
+            output/zeroperl_command.wasm
             output/config.h
 
       - name: Upload Perl prefix
