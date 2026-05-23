@@ -20,7 +20,7 @@ mkdir -p "$WORK"
 # --- zlib ---
 echo "Building zlib $ZLIB_VERSION for WASI..."
 cd "$WORK"
-curl -fsSL "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" | tar -xzf -
+curl -fsSL "https://www.zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" | tar -xzf -
 cd "zlib-${ZLIB_VERSION}"
 
 CC="$CC" CFLAGS="$CFLAGS" AR="$AR" RANLIB="$RANLIB" \
