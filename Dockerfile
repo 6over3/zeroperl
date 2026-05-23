@@ -46,7 +46,7 @@ RUN mkdir -p /zeroperl && chmod 777 /zeroperl
 FROM base AS native-perl
 
 ARG PERL_VERSION=5.42.0
-ARG EXIFTOOL_VERSION=13.42
+ARG EXIFTOOL_VERSION=13.58
 ARG BUILD_EXIFTOOL=true
 
 ENV PERL_VERSION=${PERL_VERSION} \
@@ -59,7 +59,7 @@ COPY pipeline/build-native-perl.sh pipeline/build-exiftool.sh /build/repo/pipeli
 RUN chmod +x /build/repo/pipeline/*.sh
 
 RUN /build/repo/pipeline/build-native-perl.sh
-RUN [ "${BUILD_EXIFTOOL}" = "true" ] && /build/repo/pipeline/build-exiftool.sh || true
+RUN if [ "${BUILD_EXIFTOOL}" = "true" ]; then /build/repo/pipeline/build-exiftool.sh; fi
 
 
 FROM native-perl AS wasi-perl
