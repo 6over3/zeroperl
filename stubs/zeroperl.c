@@ -38,13 +38,13 @@
 #define ZEROPERL_ENABLE_HOST_CALLBACKS 0
 #endif
 
-#define ZEROPERL_ASYNCIFY_STATE_REWINDING 2
+extern int pl_asyncify_rewinding;
 
-// Binaryen uses state 2 while replaying a saved Asyncify stack. In that state
-// globals may already look initialized, but returning early would skip the
-// matching asyncify_stop_rewind() and leave the module stuck rewinding.
+// Replay is tracked by asyncify_start_rewind/stop_rewind wrappers. During
+// replay, globals may already look initialized, but returning early would skip
+// the matching asyncify_stop_rewind() and leave the module stuck rewinding.
 static bool zeroperl_asyncify_is_rewinding(void) {
-  return asyncify_get_state() == ZEROPERL_ASYNCIFY_STATE_REWINDING;
+  return pl_asyncify_rewinding != 0;
 }
 
 //! Writes the given string literal directly to STDERR via __wasi_fd_write
