@@ -23,6 +23,7 @@ container run --rm -v $(pwd)/output:/output zeroperl cp -r /artifacts/. /output/
 Output in `./output/`:
 - `zeroperl.wasm` — reactor with asyncify
 - `zeroperl_reactor.wasm` — reactor without asyncify
+- `zeroperl_command.wasm` — command-compatible module with a returnable `_start` export
 - `perl-wasi-prefix/` — Perl library prefix
 - `exiftool.min.pl` — minified ExifTool (if enabled)
 
@@ -44,14 +45,26 @@ container build --build-arg PERL_VERSION=5.42.0 --build-arg BUILD_EXIFTOOL=false
 | Arg | Default | |
 |-----|---------|--|
 | `PERL_VERSION` | `5.42.0` | Perl source version |
-| `EXIFTOOL_VERSION` | `13.42` | ExifTool version |
+| `EXIFTOOL_VERSION` | `13.58` | ExifTool version |
 | `BUILD_EXIFTOOL` | `true` | Include ExifTool |
 | `STACK_SIZE` | `8388608` | WASM stack (bytes) |
 | `INITIAL_MEMORY` | `33554432` | WASM initial memory (bytes) |
 | `ASYNCIFY` | `true` | Enable asyncify |
+| `ENABLE_HOST_CALLBACKS` | `false` | Import `env.call_host_function` for host-registered Perl callbacks |
 | `TRIM` | `true` | Strip unused modules |
 
 </details>
+
+By default, the generated WebAssembly modules only require WASI imports. Use
+`zeroperl.wasm` when embedding zeroperl through the exported `zeroperl_*` API.
+Use `zeroperl_command.wasm` for loaders that call `instance.exports._start`,
+such as drop-in replacements for the hosted `perl.objex.ai/zeroperl-1.0.0.wasm`
+artifact. Its `_start` export reads WASI arguments but returns normally instead
+of relying on `proc_exit`, which keeps browser loaders with simple WASI shims
+from trapping after the Perl run completes. If your host uses
+`zeroperl_register_function` or `zeroperl_register_method`, build with
+`--build-arg ENABLE_HOST_CALLBACKS=true` and provide `env.call_host_function`
+when instantiating the module.
 
 ### Iterating on stubs/zeroperl.c
 

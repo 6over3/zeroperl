@@ -83,6 +83,7 @@ void async_buf_init(struct __asyncjmp_asyncify_jmp_buf *buf)
 // Global unwinding/rewinding jmpbuf state
 static asyncjmp_jmp_buf *_asyncjmp_active_jmpbuf;
 void *pl_asyncify_unwind_buf;
+int pl_asyncify_rewinding;
 
 __attribute__((noinline)) int _asyncjmp_setjmp_internal(asyncjmp_jmp_buf *env)
 {

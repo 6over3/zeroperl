@@ -20,10 +20,21 @@ __attribute__((import_module("asyncify"), import_name("stop_unwind"))) void asyn
     } while (0)
 
 __attribute__((import_module("asyncify"), import_name("start_rewind"))) void asyncify_start_rewind(void *buf);
+#define asyncify_start_rewind(buf)          \
+    do                                      \
+    {                                       \
+        extern int pl_asyncify_rewinding;   \
+        pl_asyncify_rewinding = 1;          \
+        asyncify_start_rewind((buf));       \
+    } while (0)
 
 __attribute__((import_module("asyncify"), import_name("stop_rewind"))) void asyncify_stop_rewind(void);
-
-__attribute__((import_module("asyncify"), import_name("get_state")))
-int asyncify_get_state(void);
+#define asyncify_stop_rewind()              \
+    do                                      \
+    {                                       \
+        extern int pl_asyncify_rewinding;   \
+        pl_asyncify_rewinding = 0;          \
+        asyncify_stop_rewind();             \
+    } while (0)
 
 #endif

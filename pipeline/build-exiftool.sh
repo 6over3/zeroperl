@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-EXIFTOOL_VERSION="${EXIFTOOL_VERSION:-13.42}"
+EXIFTOOL_VERSION="${EXIFTOOL_VERSION:-13.58}"
 NATIVE_DIR="${NATIVE_DIR:-/build/native}"
 REPO_DIR="${REPO_DIR:-/build/repo}"
 

@@ -7,6 +7,15 @@ REPO_DIR="${REPO_DIR:-/build/repo}"
 STACK_SIZE="${STACK_SIZE:-8388608}"
 INITIAL_MEMORY="${INITIAL_MEMORY:-33554432}"
 ASYNCIFY="${ASYNCIFY:-true}"
+ENABLE_HOST_CALLBACKS="${ENABLE_HOST_CALLBACKS:-false}"
+
+if [ "$ENABLE_HOST_CALLBACKS" = "true" ]; then
+    HOST_CALLBACKS_DEFINE=1
+    ASYNCIFY_IMPORTS="wasi_snapshot_preview1.fd_read,env.call_host_function"
+else
+    HOST_CALLBACKS_DEFINE=0
+    ASYNCIFY_IMPORTS="wasi_snapshot_preview1.fd_read"
+fi
 
 export PATH="$REPO_DIR/wasi-bin:$PATH"
 
@@ -31,30 +40,28 @@ CFLAGS="-c -O3 -flto -DNO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULAT
 -D_GNU_SOURCE -D_POSIX_C_SOURCE -DBIG_TIME -Wno-implicit-function-declaration \
 -Wno-null-pointer-arithmetic -Wno-incomplete-setjmp-declaration -Wno-incompatible-library-redeclaration \
 -Wno-int-conversion -D_WASI_EMULATED_SIGNAL \
+-DZEROPERL_ENABLE_HOST_CALLBACKS=$HOST_CALLBACKS_DEFINE \
 -include /opt/wasi-sdk/share/wasi-sysroot/include/wasm32-wasi/fcntl.h \
 -I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
 
 wasic $CFLAGS zeroperl.c -o zeroperl.o
+wasic $CFLAGS "$REPO_DIR/stubs/zeroperl_main.c" -o zeroperl_main.o
 wasic $CFLAGS "$REPO_DIR/stubs/stubs.c" -o stubs.o
 
 CFLAGS_DATA="-c -O0 -std=c23 \
 -I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
 wasic $CFLAGS_DATA "$REPO_DIR/gen/zeroperl_data.c" -o zeroperl_data.o
 
-wasic \
-    -o zeroperl_reactor.wasm \
+link_zeroperl() {
+    OUTPUT="$1"
+    shift
+
+    wasic \
+    -o "$OUTPUT" \
     -flto -g \
-    -mexec-model=reactor \
+    "$@" \
     -z stack-size="$STACK_SIZE" -Wl,--initial-memory="$INITIAL_MEMORY" \
     -static \
-    -Wl,--no-entry \
-    -Wl,--stack-first \
-    -Wl,--export-dynamic \
-    -Wl,--export=__stack_pointer \
-    -Wl,--export=__memory_base \
-    -Wl,--export=__table_base \
-    -Wl,--export=malloc \
-    -Wl,--export=free \
     -DNO_MATHOMS \
     -D_WASI_EMULATED_PROCESS_CLOCKS -lwasi-emulated-process-clocks \
     -D_WASI_EMULATED_GETPID -lwasi-emulated-getpid \
@@ -63,7 +70,6 @@ wasic \
     -D_WASI_EMULATED_SIGNAL -lwasi-emulated-signal \
     -lwasi-emulated-mman \
     -Wl,--strip-all \
-    zeroperl.o stubs.o zeroperl_data.o \
     -Wl,--whole-archive "$REPO_DIR/stubs/libasyncjmp.a" -Wl,--no-whole-archive \
     -Wl,--whole-archive libperl.a -Wl,--no-whole-archive \
     -Wl,--wrap=fopen -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=read \
@@ -109,6 +115,25 @@ wasic \
     -lm -lwasi-emulated-signal -lwasi-emulated-getpid \
     -lwasi-emulated-process-clocks -lwasi-emulated-mman \
     -ferror-limit=0
+}
+
+link_zeroperl zeroperl_reactor.wasm \
+    -mexec-model=reactor \
+    -Wl,--no-entry \
+    -Wl,--stack-first \
+    -Wl,--export-dynamic \
+    -Wl,--export=__stack_pointer \
+    -Wl,--export=__memory_base \
+    -Wl,--export=__table_base \
+    -Wl,--export=malloc \
+    -Wl,--export=free \
+    zeroperl.o stubs.o zeroperl_data.o
+
+link_zeroperl zeroperl_command_base.wasm \
+    -mexec-model=reactor \
+    -Wl,--no-entry \
+    -Wl,--stack-first \
+    zeroperl_main.o zeroperl.o stubs.o zeroperl_data.o
 
 # Restore real wasm-opt for asyncify pass
 mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
@@ -116,25 +141,36 @@ mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
 if [ "$ASYNCIFY" = "true" ]; then
     wasm-opt zeroperl_reactor.wasm -O3 --strip-debug --enable-bulk-memory \
         --enable-nontrapping-float-to-int --asyncify \
-        --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read,env.call_host_function \
+        --pass-arg=asyncify-imports@$ASYNCIFY_IMPORTS \
         ${WASM_OPT_FLAGS} \
         -o zeroperl.wasm
+    wasm-opt zeroperl_command_base.wasm -O3 --strip-debug --enable-bulk-memory \
+        --enable-nontrapping-float-to-int --asyncify \
+        --pass-arg=asyncify-imports@$ASYNCIFY_IMPORTS \
+        ${WASM_OPT_FLAGS} \
+        -o zeroperl_command.wasm
 else
     wasm-opt zeroperl_reactor.wasm --strip-debug --enable-bulk-memory \
         --enable-nontrapping-float-to-int --asyncify \
         --pass-arg=asyncify-ignore-imports \
         ${WASM_OPT_FLAGS} \
         -o zeroperl.wasm
+    wasm-opt zeroperl_command_base.wasm --strip-debug --enable-bulk-memory \
+        --enable-nontrapping-float-to-int --asyncify \
+        --pass-arg=asyncify-ignore-imports \
+        ${WASM_OPT_FLAGS} \
+        -o zeroperl_command.wasm
 fi
 
 # Strip empty name section that wamrc cannot parse
 python3 -c "
 import sys
-data = open('zeroperl.wasm', 'rb').read()
 # Custom name section: id=0x00, then LEB size, then 0x04 'name'
 marker = b'\x00\x05\x04name'
-idx = data.rfind(marker)
-if idx > 0 and idx + len(marker) == len(data):
-    open('zeroperl.wasm', 'wb').write(data[:idx])
-    print(f'Stripped {len(marker)}-byte empty name section')
+for filename in ('zeroperl.wasm', 'zeroperl_command.wasm'):
+    data = open(filename, 'rb').read()
+    idx = data.rfind(marker)
+    if idx > 0 and idx + len(marker) == len(data):
+        open(filename, 'wb').write(data[:idx])
+        print(f'Stripped {len(marker)}-byte empty name section from {filename}')
 "

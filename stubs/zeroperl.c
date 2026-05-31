@@ -34,6 +34,19 @@
 #define ZEROPERL_IMPORT(name)
 #endif
 
+#ifndef ZEROPERL_ENABLE_HOST_CALLBACKS
+#define ZEROPERL_ENABLE_HOST_CALLBACKS 0
+#endif
+
+extern int pl_asyncify_rewinding;
+
+// Replay is tracked by asyncify_start_rewind/stop_rewind wrappers. During
+// replay, globals may already look initialized, but returning early would skip
+// the matching asyncify_stop_rewind() and leave the module stuck rewinding.
+static bool zeroperl_asyncify_is_rewinding(void) {
+  return pl_asyncify_rewinding != 0;
+}
+
 //! Writes the given string literal directly to STDERR via __wasi_fd_write
 //! Avoids calls to printf or other asyncified C library functions
 #define DEBUG_LOG_INTERNAL(msg)                                                \
@@ -551,9 +564,11 @@ typedef struct {
 } zeroperl_context;
 
 //! Host-implemented function for calling back into the host environment
+#if ZEROPERL_ENABLE_HOST_CALLBACKS
 ZEROPERL_IMPORT("call_host_function")
 zeroperl_value *host_call_function(int32_t func_id, int32_t argc,
                                    zeroperl_value **argv);
+#endif
 
 //! Registry for host function IDs
 typedef struct {
@@ -631,7 +646,11 @@ static XS(xs_host_dispatch) {
     }
   }
 
+#if ZEROPERL_ENABLE_HOST_CALLBACKS
   zeroperl_value *result = host_call_function(func_id, items, argv);
+#else
+  (void)func_id;
+#endif
 
   if (argv) {
     for (int i = 0; i < items; i++) {
@@ -641,6 +660,9 @@ static XS(xs_host_dispatch) {
     free(argv);
   }
 
+#if !ZEROPERL_ENABLE_HOST_CALLBACKS
+  croak("Host callbacks are not enabled in this zeroperl build");
+#else
   if (!result || !result->sv) {
     if (result) {
       free(result);
@@ -659,6 +681,7 @@ static XS(xs_host_dispatch) {
   free(result);
   ST(0) = sv_2mortal(sv);
   XSRETURN(1);
+#endif
 }
 
 //! Internal callback for initialization
@@ -942,7 +965,9 @@ static int zeroperl_reset_callback(int argc, char **argv) {
 //! Returns 0 on success, non-zero on error.
 ZEROPERL_API("zeroperl_init")
 int zeroperl_init(void) {
-  if (zero_perl) {
+  bool rewinding = zeroperl_asyncify_is_rewinding();
+
+  if (zero_perl && !rewinding) {
     return 0;
   }
 
@@ -960,7 +985,9 @@ int zeroperl_init(void) {
 //! Returns 0 on success, non-zero on error.
 ZEROPERL_API("zeroperl_init_with_args")
 int zeroperl_init_with_args(int argc, char **argv) {
-  if (zero_perl) {
+  bool rewinding = zeroperl_asyncify_is_rewinding();
+
+  if (zero_perl && !rewinding) {
     return 0;
   }
 
@@ -984,7 +1011,9 @@ int zeroperl_init_with_args(int argc, char **argv) {
 ZEROPERL_API("zeroperl_eval")
 int zeroperl_eval(const char *code, zeroperl_context_type context, int argc,
                   char **argv) {
-  if (!zero_perl || !zero_perl_can_evaluate) {
+  bool rewinding = zeroperl_asyncify_is_rewinding();
+
+  if ((!zero_perl || !zero_perl_can_evaluate) && !rewinding) {
     return -1;
   }
 
@@ -1008,7 +1037,9 @@ int zeroperl_eval(const char *code, zeroperl_context_type context, int argc,
 //! Returns 0 on success, non-zero on error.
 ZEROPERL_API("zeroperl_run_file")
 int zeroperl_run_file(const char *filepath, int argc, char **argv) {
-  if (!zero_perl || !zero_perl_can_evaluate) {
+  bool rewinding = zeroperl_asyncify_is_rewinding();
+
+  if ((!zero_perl || !zero_perl_can_evaluate) && !rewinding) {
     return 1;
   }
 
@@ -1029,6 +1060,10 @@ int zeroperl_run_file(const char *filepath, int argc, char **argv) {
 //! After this, you can call zeroperl_init() again for a fresh interpreter.
 ZEROPERL_API("zeroperl_free_interpreter")
 void zeroperl_free_interpreter(void) {
+  if (zeroperl_asyncify_is_rewinding()) {
+    return;
+  }
+
   if (zero_perl) {
     perl_destruct(zero_perl);
     perl_free(zero_perl);
@@ -1043,6 +1078,10 @@ void zeroperl_free_interpreter(void) {
 //! Should be called only once at program exit.
 ZEROPERL_API("zeroperl_shutdown")
 void zeroperl_shutdown(void) {
+  if (zeroperl_asyncify_is_rewinding()) {
+    return;
+  }
+
   zeroperl_free_interpreter();
 
   if (zero_perl_system_initialized) {
@@ -1068,7 +1107,9 @@ void zeroperl_clear_error(void) {
 //! Returns 0 on success, non-zero on error.
 ZEROPERL_API("zeroperl_reset")
 int zeroperl_reset(void) {
-  if (!zero_perl) {
+  bool rewinding = zeroperl_asyncify_is_rewinding();
+
+  if (!zero_perl && !rewinding) {
     const char *err = "Interpreter not initialized";
     strncpy(zero_perl_error_buf, err, sizeof(zero_perl_error_buf) - 1);
     zero_perl_error_buf[sizeof(zero_perl_error_buf) - 1] = '\0';
@@ -2152,7 +2193,13 @@ static int zeroperl_call_callback(int argc, char **argv) {
 ZEROPERL_API("zeroperl_call")
 zeroperl_result *zeroperl_call(const char *name, zeroperl_context_type context,
                                int argc, zeroperl_value **argv) {
-  if (!zero_perl || !zero_perl_can_evaluate || !name) {
+  bool rewinding = zeroperl_asyncify_is_rewinding();
+
+  if ((!zero_perl || !zero_perl_can_evaluate) && !rewinding) {
+    return NULL;
+  }
+
+  if (!name) {
     return NULL;
   }
 

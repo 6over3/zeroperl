@@ -12,11 +12,19 @@ rm -rf /zeroperl/bin
 find /zeroperl -type f \( -name "*.so" -o -name "*.a" -o -name "*.ld" -o -name "*.pod" -o -name "*.h" -o -executable \) -delete
 
 if [ "$BUILD_EXIFTOOL" = "true" ]; then
-    SITE_PERL="$NATIVE_DIR/prefix/lib/perl5/site_perl/$PERL_VERSION"
+    SITE_PERL="$(find "$NATIVE_DIR/prefix" -type f -path '*/Image/ExifTool.pm' -exec dirname {} \; -quit)"
+    if [ -z "$SITE_PERL" ]; then
+        echo "ExifTool modules were not found under $NATIVE_DIR/prefix" >&2
+        exit 1
+    fi
+    SITE_PERL="$(dirname "$SITE_PERL")"
+
     mkdir -p "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/File"
     mkdir -p "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/Image"
-    cp -R "$SITE_PERL/File/"* "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/File/" 2>/dev/null || true
-    cp -R "$SITE_PERL/Image/"* "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/Image/"
+    if [ -d "$SITE_PERL/File" ]; then
+        cp -R "$SITE_PERL/File/." "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/File/"
+    fi
+    cp -R "$SITE_PERL/Image/." "/zeroperl/lib/$PERL_VERSION/wasm32-wasi/Image/"
 fi
 
 node "$REPO_DIR/tools/delete.js" "$REPO_DIR/tools/delete.txt" /zeroperl "$PERL_VERSION"
