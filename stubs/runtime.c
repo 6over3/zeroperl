@@ -12,22 +12,33 @@ int asyncjmp_rt_start(int(main)(int argc, char **argv), int argc, char **argv)
     {
         result = main(argc, argv);
 
-        extern void *pl_asyncify_unwind_buf;
-        if (pl_asyncify_unwind_buf != NULL)
-        {
-            asyncify_stop_unwind();
+         extern void *pl_asyncify_unwind_buf;
+        // Exit Asyncify loop if there is no unwound buffer, which
+        // means that main function has returned normally.
+        if (pl_asyncify_unwind_buf == NULL) {
+          break;
+        }
 
-            if ((asyncify_buf = asyncjmp_handle_jmp_unwind()) != NULL)
-            {
-                asyncify_start_rewind(asyncify_buf);
-                continue;
-            }
-            if ((asyncify_buf = asyncjmp_handle_scan_unwind()) != NULL)
-            {
-                asyncify_start_rewind(asyncify_buf);
-                continue;
-            }
-            break;
+        // NOTE: it's important to call 'asyncify_stop_unwind' here instead in
+        // asyncjmp_handle_jmp_unwind because unless that, Asyncify inserts another
+        // unwind check here and it unwinds to the root frame.
+        asyncify_stop_unwind();
+
+        if ((asyncify_buf = asyncjmp_handle_jmp_unwind()) != NULL)
+        {
+            asyncify_start_rewind(asyncify_buf);
+            continue;
+        }
+        if ((asyncify_buf = asyncjmp_handle_scan_unwind()) != NULL)
+        {
+            asyncify_start_rewind(asyncify_buf);
+            continue;
+        }
+        // Handle async web API unwind - uses separate buffer from setjmp
+        if ((asyncify_buf = async_web_api_handle_unwind()) != NULL)
+        {
+            asyncify_start_rewind(asyncify_buf);
+            continue;
         }
 
         break;

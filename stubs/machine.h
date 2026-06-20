@@ -21,4 +21,13 @@ void asyncjmp_set_stack_pointer(void *sp);
 // Used by the top level Asyncify handling in wasm/runtime.c
 void *asyncjmp_handle_scan_unwind(void);
 
+// Start async web API unwind - uses separate buffer from setjmp
+void async_web_api_unwind(void);
+
+// Stop async web API unwind
+void async_web_api_stop(void);
+
+// Handle async web API unwind
+void *async_web_api_handle_unwind(void);
+
 #endif

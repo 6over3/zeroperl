@@ -22,6 +22,10 @@ static void init_asyncify_buf(struct asyncify_buf *buf)
 
 static void *_asyncjmp_active_scan_buf = NULL;
 
+// Separate buffer for async web API operations (isolated from setjmp)
+static struct asyncify_buf _async_web_api_buf;
+static int _async_web_api_in_unwind = 0;
+
 void asyncjmp_scan_locals(asyncjmp_scan_func scan)
 {
     static struct asyncify_buf buf;
@@ -40,6 +44,33 @@ void asyncjmp_scan_locals(asyncjmp_scan_func scan)
         _asyncjmp_active_scan_buf = NULL;
         scan(buf.top, buf.end);
     }
+}
+
+// Start async web API unwind - saves setjmp state if active
+void async_web_api_unwind(void)
+{
+    if (!_async_web_api_in_unwind)
+    {
+        _async_web_api_in_unwind = 1;
+        init_asyncify_buf(&_async_web_api_buf);
+        asyncify_start_unwind(&_async_web_api_buf);
+    }
+}
+
+// Stop async web API unwind and restore setjmp context
+void async_web_api_stop(void)
+{
+    if (_async_web_api_in_unwind)
+    {
+        asyncify_stop_rewind();
+        _async_web_api_in_unwind = 0;
+    }
+}
+
+// Handle async web API unwind - called from runtime.c
+void *async_web_api_handle_unwind(void)
+{
+    return (_async_web_api_in_unwind) ? &_async_web_api_buf : NULL;
 }
 
 static void *asyncjmp_stack_base = NULL;
