@@ -5,8 +5,8 @@
 
 int asyncjmp_rt_start(int(main)(int argc, char **argv), int argc, char **argv)
 {
-    int result;
-    void *asyncify_buf;
+    int result = 0;
+    void *asyncify_buf = NULL;
 
     while (1)
     {
@@ -24,12 +24,14 @@ int asyncjmp_rt_start(int(main)(int argc, char **argv), int argc, char **argv)
         // unwind check here and it unwinds to the root frame.
         asyncify_stop_unwind();
 
-        if ((asyncify_buf = asyncjmp_handle_jmp_unwind()) != NULL)
+        asyncify_buf = asyncjmp_handle_jmp_unwind();
+        if (asyncify_buf != NULL)
         {
             asyncify_start_rewind(asyncify_buf);
             continue;
         }
-        if ((asyncify_buf = asyncjmp_handle_scan_unwind()) != NULL)
+        asyncify_buf = asyncjmp_handle_scan_unwind();
+        if (asyncify_buf != NULL)
         {
             asyncify_start_rewind(asyncify_buf);
             continue;

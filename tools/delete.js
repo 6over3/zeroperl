@@ -17,10 +17,10 @@ const path = require("path");
 // Get the log file, base directory, and Perl version from command-line arguments
 const args = process.argv.slice(2);
 if (args.length < 3) {
-	console.error(
-		"Usage: delete.js <delete.txt> <base_directory> <perl_version>",
-	);
-	process.exit(1);
+  console.error(
+    "Usage: delete.js <delete.txt> <base_directory> <perl_version>",
+  );
+  process.exit(1);
 }
 
 const logFilePath = path.resolve(args[0]);
@@ -30,41 +30,41 @@ const perlVersion = args[2];
 // Read the log file synchronously
 let content;
 try {
-	content = fs.readFileSync(logFilePath, "utf8");
+  content = fs.readFileSync(logFilePath, "utf8");
 } catch (err) {
-	console.error(`Error reading file ${logFilePath}:`, err.message);
-	process.exit(1);
+  console.error(`Error reading file ${logFilePath}:`, err.message);
+  process.exit(1);
 }
 
 // Split the content into lines, trim whitespace, and remove empty lines.
 const entries = content
-	.split(/\r?\n/)
-	.map((line) => line.trim())
-	.filter((line) => line.length > 0)
-	.map((line) => line.replace(/{VERSION}/g, perlVersion)); // Replace {VERSION} with actual version
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => line.length > 0)
+  .map((line) => line.replace(/{VERSION}/g, perlVersion)); // Replace {VERSION} with actual version
 
 // Reverse the array so that nested files/directories are processed first.
 entries.reverse();
 
 // Process each entry synchronously.
 for (const relativeEntry of entries) {
-	// The target file/directory is located at baseDir/relativeEntry
-	const targetPath = path.resolve(baseDir, relativeEntry);
+  // The target file/directory is located at baseDir/relativeEntry
+  const targetPath = path.resolve(baseDir, relativeEntry);
 
-	try {
-		const stat = fs.lstatSync(targetPath);
-		if (stat.isDirectory()) {
-			// Remove the directory (recursively)
-			fs.rmdirSync(targetPath, { recursive: true });
-			console.log(`Deleted directory: ${relativeEntry}`);
-		} else {
-			// Remove a file or symbolic link
-			fs.unlinkSync(targetPath);
-			console.log(`Deleted file: ${relativeEntry}`);
-		}
-	} catch (err) {
-		console.error(`Error deleting "${relativeEntry}":`, err.message);
-	}
+  try {
+    const stat = fs.lstatSync(targetPath);
+    if (stat.isDirectory()) {
+      // Remove the directory (recursively)
+      fs.rmSync(targetPath, { recursive: true });
+      console.log(`Deleted directory: ${relativeEntry}`);
+    } else {
+      // Remove a file or symbolic link
+      fs.unlinkSync(targetPath);
+      console.log(`Deleted file: ${relativeEntry}`);
+    }
+  } catch (err) {
+    console.error(`Error deleting "${relativeEntry}":`, err.message);
+  }
 }
 
 console.log("\nDeletion complete!");

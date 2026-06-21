@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+
+// Keep context between try/catch callbacks so two adjacent function-pointer
+// parameters are not easily swapped at call sites.
 #ifndef WASM_SETJMP_STACK_BUFFER_SIZE
 #define WASM_SETJMP_STACK_BUFFER_SIZE 32768
 #endif
@@ -34,7 +37,7 @@ typedef struct
 __attribute__((noinline)) int _asyncjmp_setjmp(asyncjmp_jmp_buf *env);
 __attribute__((noinline)) void _asyncjmp_longjmp(asyncjmp_jmp_buf *env, int payload);
 
-#define asyncjmp_setjmp(env) ((env).state = 0, _asyncjmp_setjmp(&(env)))
+#define asyncjmp_setjmp(env) (((env).state = 0), _asyncjmp_setjmp(&(env)))
 
 // NOTE: Why is `_asyncjmp_longjmp` not `noreturn`? Why put `unreachable` in the call site?
 // Asyncify expects that `_asyncjmp_longjmp` returns its control, and Asyncify inserts a return
@@ -43,7 +46,7 @@ __attribute__((noinline)) void _asyncjmp_longjmp(asyncjmp_jmp_buf *env, int payl
 // On the other hand, `noreturn` means the callee won't return its control to the caller,
 // so compiler can assume that a function with the attribute won't reach the end of the function.
 // Therefore `_asyncjmp_longjmp`'s semantics is not exactly same as `noreturn`.
-#define asyncjmp_longjmp(env, payload) (_asyncjmp_longjmp(&env, payload), __builtin_unreachable())
+#define asyncjmp_longjmp(env, payload) (_asyncjmp_longjmp(&(env), (payload)), __builtin_unreachable())
 
 // Returns the Asyncify buffer of next rewinding if unwound for setjmp capturing or longjmp.
 // Used by the top level Asyncify handling in wasm/runtime.c
@@ -75,8 +78,8 @@ struct asyncjmp_try_catch
 
 void asyncjmp_try_catch_init(struct asyncjmp_try_catch *try_catch,
                              asyncjmp_try_catch_func_t try_f,
-                             asyncjmp_try_catch_func_t catch_f,
-                             void *context);
+                             void *context,
+                             asyncjmp_try_catch_func_t catch_f);
 
 // Run, catch longjmp thrown by run, and re-catch longjmp thrown by catch, ...
 //

@@ -1,0 +1,208 @@
+name: zeroperl Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0). Leave empty to skip release creation."
+        required: false
+        type: string
+        default: ""
+      perl-version-legacy:
+        description: "Legacy Perl version"
+        required: false
+        default: "5.16.3"
+      perl-version-latest:
+        description: "Latest Perl version"
+        required: false
+        default: "5.42.2"
+      exiftool-version:
+        description: "ExifTool version"
+        required: false
+        default: "13.55"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: exiftool-5.16.3
+            perl-version: ${{ inputs.perl-version-legacy }}
+            shrink-mode: full
+            embed-prefix: true
+            build-exiftool: true
+          - name: exiftool-5.42.2
+            perl-version: ${{ inputs.perl-version-latest }}
+            shrink-mode: full
+            embed-prefix: true
+            build-exiftool: true
+          - name: perl-only-5.16.3
+            perl-version: ${{ inputs.perl-version-legacy }}
+            shrink-mode: off
+            embed-prefix: true
+            build-exiftool: false
+          - name: perl-only-5.42.2
+            perl-version: ${{ inputs.perl-version-latest }}
+            shrink-mode: off
+            embed-prefix: true
+            build-exiftool: false
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install verifier dependencies
+        run: npm --prefix tools ci
+
+      - name: Build zeroperl (${{ matrix.name }})
+        run: |
+          SFS_COMPRESS="false"
+          if [ "${{ matrix.shrink-mode }}" = "full" ]; then
+            SFS_COMPRESS="true"
+          fi
+
+          docker build \
+            --build-arg PERL_VERSION=${{ matrix.perl-version }} \
+            --build-arg EXIFTOOL_VERSION=${{ inputs.exiftool-version }} \
+            --build-arg BUILD_EXIFTOOL=${{ matrix.build-exiftool }} \
+            --build-arg TRIM=true \
+            --build-arg ZEROPERL_SHRINK=${{ matrix.shrink-mode }} \
+            --build-arg ZEROPERL_SFS_COMPRESS=${SFS_COMPRESS} \
+            --build-arg ZEROPERL_EMBED_PREFIX=${{ matrix.embed-prefix }} \
+            -t zeroperl:${{ matrix.name }} .
+
+      - name: Build wasi-perl stage (${{ matrix.name }})
+        run: |
+          SFS_COMPRESS="false"
+          if [ "${{ matrix.shrink-mode }}" = "full" ]; then
+            SFS_COMPRESS="true"
+          fi
+
+          docker build \
+            --target wasi-perl \
+            --build-arg PERL_VERSION=${{ matrix.perl-version }} \
+            --build-arg EXIFTOOL_VERSION=${{ inputs.exiftool-version }} \
+            --build-arg BUILD_EXIFTOOL=${{ matrix.build-exiftool }} \
+            --build-arg TRIM=true \
+            --build-arg ZEROPERL_SHRINK=${{ matrix.shrink-mode }} \
+            --build-arg ZEROPERL_SFS_COMPRESS=${SFS_COMPRESS} \
+            --build-arg ZEROPERL_EMBED_PREFIX=${{ matrix.embed-prefix }} \
+            -t zeroperl:${{ matrix.name }}-wasi .
+
+      - name: ExifTool smoke (${{ matrix.name }})
+        if: ${{ matrix.build-exiftool == true }}
+        run: |
+          docker run --rm zeroperl:${{ matrix.name }}-wasi \
+            sh -lc '/build/native/prefix/bin/perl /build/repo/exiftool.min.pl -ver'
+
+      - name: Extract wasi gen artifacts (${{ matrix.name }})
+        if: ${{ matrix.shrink-mode != 'off' }}
+        run: |
+          mkdir -p /tmp/wasi-gen/${{ matrix.name }}
+          for file in traced-files.txt xs-static-ext.txt warmup-inc.txt wasm-missing-paths.txt; do
+            docker run --rm zeroperl:${{ matrix.name }}-wasi \
+              sh -lc "cat /build/repo/gen/$file" > "/tmp/wasi-gen/${{ matrix.name }}/$file"
+          done
+
+      - name: Shrink manifest determinism (${{ matrix.name }})
+        if: ${{ matrix.shrink-mode != 'off' }}
+        run: |
+          SFS_COMPRESS="true"
+          docker build \
+            --target wasi-perl \
+            --build-arg PERL_VERSION=${{ matrix.perl-version }} \
+            --build-arg EXIFTOOL_VERSION=${{ inputs.exiftool-version }} \
+            --build-arg BUILD_EXIFTOOL=${{ matrix.build-exiftool }} \
+            --build-arg TRIM=true \
+            --build-arg ZEROPERL_SHRINK=${{ matrix.shrink-mode }} \
+            --build-arg ZEROPERL_SFS_COMPRESS=${SFS_COMPRESS} \
+            --build-arg ZEROPERL_EMBED_PREFIX=${{ matrix.embed-prefix }} \
+            -t zeroperl:${{ matrix.name }}-wasi-determinism .
+
+          manifest_cmd='for f in /build/repo/gen/traced-files.txt /build/repo/gen/xs-static-ext.txt /build/repo/gen/hints-static-ext.fragment /build/repo/gen/wasm-auto-libs.txt /build/repo/gen/xs_init.inc; do if [ -f "$f" ]; then sha256sum "$f"; else echo "MISSING  $f"; fi; done'
+          docker run --rm zeroperl:${{ matrix.name }}-wasi sh -lc "$manifest_cmd" | sort > /tmp/manifest-${{ matrix.name }}-a.txt
+          docker run --rm zeroperl:${{ matrix.name }}-wasi-determinism sh -lc "$manifest_cmd" | sort > /tmp/manifest-${{ matrix.name }}-b.txt
+          diff -u /tmp/manifest-${{ matrix.name }}-a.txt /tmp/manifest-${{ matrix.name }}-b.txt
+
+      - name: Extract artifacts (${{ matrix.name }})
+        run: |
+          mkdir -p output/${{ matrix.name }}
+          docker run --rm -v $PWD/output:/output zeroperl:${{ matrix.name }} \
+            cp -r /artifacts/. /output/${{ matrix.name }}/
+          ls -la output/${{ matrix.name }}/
+
+      - name: Embedded @INC verifier (${{ matrix.name }})
+        if: ${{ matrix.embed-prefix == true && matrix.build-exiftool == true }}
+        run: node tools/verify-embedded-inc.mjs output/${{ matrix.name }}/zeroperl.wasm
+
+      - name: WASM runtime smoke (${{ matrix.name }})
+        if: ${{ matrix.build-exiftool == true && matrix.embed-prefix == true }}
+        run: node tools/wasm-smoke.mjs output/${{ matrix.name }}/zeroperl.wasm output/${{ matrix.name }}/exiftool.min.pl
+
+      - name: Upload WASM artifacts (${{ matrix.name }})
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-${{ matrix.name }}
+          path: |
+            output/${{ matrix.name }}/zeroperl.wasm
+            output/${{ matrix.name }}/zeroperl_reactor.wasm
+            output/${{ matrix.name }}/config.h
+          if-no-files-found: error
+
+      - name: Upload Perl prefix (${{ matrix.name }})
+        uses: actions/upload-artifact@v7
+        with:
+          name: prefix-${{ matrix.name }}
+          path: output/${{ matrix.name }}/perl-wasi-prefix
+
+      - name: Upload ExifTool (${{ matrix.name }})
+        if: ${{ matrix.build-exiftool == true }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: exiftool-${{ matrix.name }}
+          path: output/${{ matrix.name }}/exiftool.min.pl
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ inputs.tag != '' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: false
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p assets
+          for dir in release-assets/wasm-*/; do
+            name=$(basename "$dir" | sed 's/^wasm-//')
+            if [ -f "$dir/zeroperl.wasm" ]; then
+              cp "$dir/zeroperl.wasm" "assets/${name}.wasm"
+            fi
+            for f in zeroperl_reactor.wasm config.h; do
+              if [ -f "$dir/$f" ]; then
+                cp "$dir/$f" "assets/${name}_${f}"
+              fi
+            done
+          done
+          echo "=== Release assets ==="
+          ls -lh assets/
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: Release ${{ inputs.tag }}
+          draft: false
+          files: assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

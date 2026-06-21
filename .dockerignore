@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+tools/node_modules/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README*
+LICENSE
+
+# Test artifacts and scripts
+test-*.sh
+test-output/
+
+# Build artifacts
+*.o
+*.a
+*.wasm
+*.wasm.map
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pi agent config
+.pi/

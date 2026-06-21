@@ -1,5 +1,7 @@
 #include <unistd.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <errno.h>
 
 // Define mode_t as unsigned int if not already defined
 typedef unsigned int mode_t;
@@ -36,8 +38,12 @@ int do_aspawn(int arg1, int arg2, int arg3) { return -1; } // Adjusted signature
 int do_spawn(int arg1) { return -1; } // Adjusted signature
 
 // Pipe and wait
+int pipe(int fds[2]) { errno = ENOSYS; return -1; }
 int PerlProc_pipe_cloexec(int fds[2]) { return -1; }
 int wait(int *status) { return -1; }
+
+// Temp file
+FILE *tmpfile(void) { errno = ENOTSUP; return NULL; }
 
 // Timezone functions
 int tzset() { return 0; } // Adjusted to return int as expected

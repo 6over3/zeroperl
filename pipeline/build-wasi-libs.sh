@@ -1,6 +1,9 @@
 #!/bin/sh
-# Cross-compile zlib and bzip2 for WASI, install into the WASI sysroot.
 set -e
+
+# Cross-compile zlib, bzip2, and lz4 for wasm32-wasi and install them into
+# the WASI sysroot so that Perl's Compress::Raw::Zlib, Compress::Raw::Bzip2,
+# and the SFS compression layer can link against them.
 
 WASI_SDK_PATH="${WASI_SDK_PATH:-/opt/wasi-sdk}"
 SYSROOT="$WASI_SDK_PATH/share/wasi-sysroot"
@@ -11,8 +14,9 @@ AR="$WASI_SDK_PATH/bin/llvm-ar"
 RANLIB="$WASI_SDK_PATH/bin/llvm-ranlib"
 CFLAGS="--target=wasm32-wasi --sysroot=$SYSROOT -O3 -w"
 
-ZLIB_VERSION="${ZLIB_VERSION:-1.3.1}"
+ZLIB_VERSION="${ZLIB_VERSION:-1.3.2}"
 BZIP2_VERSION="${BZIP2_VERSION:-1.0.8}"
+LZ4_VERSION="${LZ4_VERSION:-1.10.0}"
 
 WORK="/tmp/wasi-libs"
 mkdir -p "$WORK"
@@ -20,7 +24,7 @@ mkdir -p "$WORK"
 # --- zlib ---
 echo "Building zlib $ZLIB_VERSION for WASI..."
 cd "$WORK"
-curl -fsSL "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" | tar -xzf -
+curl -fsSL "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" | tar -xzf -
 cd "zlib-${ZLIB_VERSION}"
 
 CC="$CC" CFLAGS="$CFLAGS" AR="$AR" RANLIB="$RANLIB" \
@@ -41,5 +45,18 @@ make -j"$(nproc)" libbz2.a \
 cp libbz2.a "$LIBDIR/"
 cp bzlib.h "$INCDIR/"
 
+# --- lz4 ---
+echo "Building lz4 $LZ4_VERSION for WASI..."
+cd "$WORK"
+curl -fsSL "https://github.com/lz4/lz4/archive/refs/tags/v${LZ4_VERSION}.tar.gz" | tar -xzf -
+cd "lz4-${LZ4_VERSION}"
+
+make -j"$(nproc)" -C lib liblz4.a \
+    CC="$CC $CFLAGS" \
+    AR="$AR" \
+    RANLIB="$RANLIB"
+cp lib/liblz4.a "$LIBDIR/"
+cp lib/lz4.h lib/lz4frame.h lib/lz4hc.h "$INCDIR/"
+
 rm -rf "$WORK"
-echo "zlib and bzip2 installed into $SYSROOT"
+echo "zlib, bzip2, and lz4 installed into $SYSROOT"

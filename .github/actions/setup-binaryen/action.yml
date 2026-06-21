@@ -1,25 +1,25 @@
-name: 'Setup Binaryen'
-description: 'Install Binaryen WebAssembly toolchain'
+name: "Setup Binaryen"
+description: "Install Binaryen WebAssembly toolchain"
 inputs:
   version:
-    description: 'Binaryen version to install'
+    description: "Binaryen version to install"
     required: false
-    default: '124'
+    default: "124"
   install-path:
-    description: 'Directory to install Binaryen to'
+    description: "Directory to install Binaryen to"
     required: false
-    default: '/opt/binaryen'
+    default: "/opt/binaryen"
 
 outputs:
   binaryen-path:
-    description: 'Path to the installed Binaryen'
+    description: "Path to the installed Binaryen"
     value: ${{ steps.install-unix.outputs.binaryen-path || steps.install-windows.outputs.binaryen-path }}
   binaryen-version:
-    description: 'Version of Binaryen that was installed'
+    description: "Version of Binaryen that was installed"
     value: ${{ inputs.version }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Detect platform
       id: platform

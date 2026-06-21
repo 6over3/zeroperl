@@ -6,12 +6,11 @@ env:
   EMSCRIPTEN_VERSION: 3.1.73
 
 jobs:
-
   perlemscripten:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v13
         with:
@@ -41,7 +40,7 @@ jobs:
           #  Archive::Zip Compress::Raw::Lzma Compress::Zlib Digest::MD5 Digest::SHA \
           #  IO::Compress::Brotli IO::Compress::RawDeflate IO::Uncompress::Brotli \
           #  IO::Uncompress::RawInflate POSIX::strptime Time::HiRes
-          
+
       - name: Heredoc
         run: |
           cat <<'EOF' > hintfile_wasm.sh
@@ -116,26 +115,26 @@ jobs:
             # Configure apparently changes "-s ASSERTIONS=2 -s STACK_OVERFLOW_CHECK=2" to "-s -s" when converting ccflags to cppflags
             # this is the current hack/workaround: copy cppflags from config.sh and fix it (TODO Later: better way would be to patch Configure)
             cppflags='-lm -s ERROR_ON_UNDEFINED_SYMBOLS=0 -D_GNU_SOURCE -D_POSIX_C_SOURCE -DSTANDARD_C -DPERL_USE_SAFE_PUTENV -DNO_MATHOMS -Wno-null-pointer-arithmetic -fno-strict-aliasing -pipe -fstack-protector-strong -I/usr/local/include'
-          
+
           EOF
       - name: Install Perl static wasm
         shell: bash
         run: |
-          
+
           mkdir wasm && curl -L $URLPERL | tar -xzf - --strip-components=1 --directory=wasm
-          
+
           cp hintfile_wasm.sh wasm/hints/emscripten.sh
-          
+
           cd wasm
           # Ensure the correct directories are created
           mkdir -p ./prefix/lib/perl5/site_perl/5.40.0/wasm
-    
+
           # Copy the required files
           cp -rv ../native/prefix/lib/perl5/site_perl/5.40.0/Image ./prefix/lib/perl5/site_perl/5.40.0/wasm/ 
           cp -rv ../native/prefix/lib/perl5/site_perl/5.40.0/File ./prefix/lib/perl5/site_perl/5.40.0/wasm/
-         
+
           emconfigure sh ./Configure -sde -Dinc_version_list=none -Ddlsrc=none -Dloclibpth='' -Dglibpth='' -Dlns='/bin/ln' -Dman1dir=none -Dman3dir=none -Dosname="emscripten" -Darchname="wasm" -Dosvers="2.0.5" -Dmyhostname='localhost' -Dmydomain='.local' -Dperladmin=root -Dcc=emcc -Dld=emcc -Dar=$(which emar) -Dranlib=$(which emranlib) -Doptimize="-O2" -Dlibs='-lm' -Dhintfile=emscripten -Dsysroot=$(dirname $(which emcc))/system -Dhostperl=$PWD/../native/miniperl -Dhostgenerate=$PWD/../native/generate_uudmap -Dprefix=$PWD/prefix -Dstatic_ext="mro Devel/Peek File/DosGlob File/Glob Sys/Syslog Sys/Hostname PerlIO/via PerlIO/mmap PerlIO/encoding B attributes Unicode/Normalize Unicode/Collate threads threads/shared IPC/SysV re Digest/MD5 Digest/SHA SDBM_File Math/BigInt/FastCalc Data/Dumper I18N/Langinfo Time/HiRes Time/Piece IO Socket Hash/Util/FieldHash Hash/Util Filter/Util/Call POSIX Encode/Unicode Encode Encode/JP Encode/KR Encode/EBCDIC Encode/CN Encode/Symbol Encode/Byte Encode/TW Compress/Raw/Zlib Compress/Raw/Bzip2 MIME/Base64 Cwd Storable List/Util Fcntl Opcode"
-          
+
           ln -s $PWD/pod/perldelta.pod .; ln $PWD/README.* ..
           emmake make utilities PERL="$PWD/../native/miniperl"
           emmake make       RUN_PERL="$PWD/../native/miniperl -Ilib -I."

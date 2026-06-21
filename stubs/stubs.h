@@ -2,6 +2,7 @@
 #define STUBS_H
 
 #include <unistd.h>
+#include <stdio.h>
 
 // Inline stub implementations for missing system calls
 
@@ -18,6 +19,12 @@ static inline int kill(pid_t pid, int sig) { return 0; }
 
 // File descriptor duplication
 static inline int dup(int oldfd) { return -1; }
+
+// Pipe (not available on WASI)
+static inline int pipe(int fds[2]) { errno = ENOSYS; return -1; }
+
+// Temp file (not available on WASI)
+static inline FILE *tmpfile(void) { errno = ENOTSUP; return NULL; }
 
 // File mode creation mask
 static inline mode_t umask(mode_t mask) { return 0; }

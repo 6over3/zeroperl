@@ -1,5 +1,11 @@
-# WASI hints for Perl cross-compilation
-# Based on actual WASM32 type sizes from wasi-sdk
+# WASI hints for Perl cross-compilation.
+#
+# This file is consumed by build-wasi-perl.sh, which substitutes
+# placeholders (__WASI_SDK_PATH__, __NATIVE_DIR__, etc.) and appends
+# version-specific overrides before passing it to Perl's Configure
+# as -Dhintfile=wasi.
+#
+# Based on actual WASM32 type sizes from wasi-sdk.
 
 # Architecture
 osname='wasi'
@@ -42,6 +48,12 @@ d_perl_lc_all_separator='define'
 perl_lc_all_separator=';'
 d_perl_lc_all_category_positions_init='define'
 perl_lc_all_category_positions_init='{ 0, 1, 2, 3, 4, 5 }'
+
+# Void support (modern compilers all support void)
+voidflags='15'
+
+# Header availability (cross-compilation can't detect these)
+i_time='define'
 
 # Memory/threading
 usemymalloc='n'
@@ -204,7 +216,7 @@ d_readdir64_r='undef'
 noextensions='Socket POSIX Devel/Peek Sys/Syslog B threads threads/shared IPC/SysV SDBM_File Storable File/DosGlob'
 
 # Static extensions to build
-static_ext='mro Time/HiRes File/Glob Sys/Hostname PerlIO/via PerlIO/mmap PerlIO/encoding attributes Unicode/Normalize Unicode/Collate re Digest/MD5 Digest/SHA Math/BigInt/FastCalc Data/Dumper I18N/Langinfo Time/Piece IO Hash/Util/FieldHash Hash/Util Filter/Util/Call Encode/Unicode Encode Encode/JP Encode/KR Encode/EBCDIC Encode/CN Encode/Symbol Encode/Byte Encode/TW Compress/Raw/Zlib Compress/Raw/Bzip2 MIME/Base64 Cwd List/Util Fcntl Opcode'
+static_ext='mro Time/HiRes File/Glob Sys/Hostname PerlIO/via PerlIO/mmap PerlIO/encoding attributes Unicode/Collate re Digest/MD5 Digest/SHA Math/BigInt/FastCalc Data/Dumper I18N/Langinfo Time/Piece IO Hash/Util/FieldHash Hash/Util Filter/Util/Call Encode/Unicode Encode Encode/JP Encode/KR Encode/EBCDIC Encode/CN Encode/Symbol Encode/Byte Encode/TW Compress/Raw/Zlib Compress/Raw/Bzip2 MIME/Base64 Cwd List/Util Fcntl Opcode'
 
 # Compiler/linker flags
 ccflags='-DBIG_TIME -DNO_MATHOMS -Wno-int-conversion -Wno-implicit-function-declaration -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID -D_GNU_SOURCE -D_POSIX_C_SOURCE -Wno-null-pointer-arithmetic -D_WASI_EMULATED_SIGNAL -include __WASI_SDK_PATH__/share/wasi-sysroot/include/wasm32-wasi/fcntl.h -I__STUBS_DIR__'

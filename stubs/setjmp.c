@@ -123,13 +123,13 @@ __attribute__((noinline)) int _asyncjmp_setjmp_internal(asyncjmp_jmp_buf *env)
     return 0;
 }
 
-void _asyncjmp_longjmp(asyncjmp_jmp_buf *env, int value)
+void _asyncjmp_longjmp(asyncjmp_jmp_buf *env, int payload)
 {
     ASYNCJMP_DEBUG_LOG("enter _asyncjmp_longjmp");
     assert(env->state == JMP_BUF_STATE_CAPTURED);
-    assert(value != 0);
+    assert(payload != 0);
     env->state = JMP_BUF_STATE_RETURNING;
-    env->payload = value;
+    env->payload = payload;
     // Asyncify buffer built during unwinding for longjmp will not
     // be used to rewind, so re-use static-variable.
     static struct __asyncjmp_asyncify_jmp_buf tmp_longjmp_buf;
@@ -147,7 +147,8 @@ enum try_catch_phase
 
 void asyncjmp_try_catch_init(struct asyncjmp_try_catch *try_catch,
                              asyncjmp_try_catch_func_t try_f,
-                             asyncjmp_try_catch_func_t catch_f, void *context)
+                             void *context,
+                             asyncjmp_try_catch_func_t catch_f)
 {
     try_catch->state = TRY_CATCH_PHASE_MAIN;
     try_catch->try_f = try_f;
@@ -163,7 +164,6 @@ void asyncjmp_try_catch_loop_run(struct asyncjmp_try_catch *try_catch,
                                  asyncjmp_jmp_buf *target)
 {
     extern void *pl_asyncify_unwind_buf;
-    extern asyncjmp_jmp_buf *_asyncjmp_active_jmpbuf;
 
     target->state = JMP_BUF_STATE_CAPTURED;
 

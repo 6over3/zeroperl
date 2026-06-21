@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "@6over3/zeroperl-ts": "file:./zeroperl-ts",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.0",
+    "globals": "^17.4.0"
+  },
+  "scripts": {
+    "verify:embedded-inc": "node tools/verify-embedded-inc.mjs"
+  }
+}

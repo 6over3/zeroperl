@@ -1,20 +1,64 @@
 #!/bin/sh
 set -e
 
+# Compile zeroperl stubs and link the final WASM binary.
+#
+# Pipeline position: runs after build-wasi-perl.sh.
+# Builds the asyncify jump library, compiles zeroperl.c / stubs.c /
+# sfs_runtime.c, generates xs_init.inc if missing, and links everything
+# into zeroperl.wasm with wasm-opt post-processing (asyncify, strip, etc.).
+
+PERL_VERSION="${PERL_VERSION:-5.42.2}"
+PERL_MAJOR=$(echo "$PERL_VERSION" | cut -d. -f1)
+PERL_MINOR=$(echo "$PERL_VERSION" | cut -d. -f2)
+
+if [ "$PERL_MAJOR" -lt 5 ] || { [ "$PERL_MAJOR" -eq 5 ] && [ "$PERL_MINOR" -lt 16 ]; }; then
+    echo "error: Perl $PERL_VERSION is not supported. Minimum supported version is 5.16.3." >&2
+    exit 1
+fi
+
+# -DNO_MATHOMS exists in 5.20+
+if [ "$PERL_MAJOR" -gt 5 ] || { [ "$PERL_MAJOR" -eq 5 ] && [ "$PERL_MINOR" -ge 20 ]; }; then
+    NO_MATHOMS="-DNO_MATHOMS"
+else
+    NO_MATHOMS=""
+fi
+
 WASI_SDK_PATH="${WASI_SDK_PATH:-/opt/wasi-sdk}"
 WASM_DIR="${WASM_DIR:-/build/wasm}"
 REPO_DIR="${REPO_DIR:-/build/repo}"
 STACK_SIZE="${STACK_SIZE:-8388608}"
 INITIAL_MEMORY="${INITIAL_MEMORY:-33554432}"
 ASYNCIFY="${ASYNCIFY:-true}"
+ZEROPERL_SHRINK="${ZEROPERL_SHRINK:-off}"
+ZEROPERL_SFS_COMPRESS="${ZEROPERL_SFS_COMPRESS:-}"
+ZEROPERL_EMBED_PREFIX="${ZEROPERL_EMBED_PREFIX:-true}"
+
+if [ -z "$ZEROPERL_SFS_COMPRESS" ]; then
+    if [ "$ZEROPERL_SHRINK" = "full" ]; then
+        ZEROPERL_SFS_COMPRESS="true"
+    else
+        ZEROPERL_SFS_COMPRESS="false"
+    fi
+fi
+
+# Nothing to compress when prefix is not embedded
+if [ "$ZEROPERL_EMBED_PREFIX" = "false" ]; then
+    ZEROPERL_SFS_COMPRESS="false"
+fi
 
 export PATH="$REPO_DIR/wasi-bin:$PATH"
 
-# Use fake wasm-opt during compile/link to prevent post-link optimization
+# wasm-opt is invoked automatically by wasic during linking.  We swap in a
+# no-op stub so that LTO/link happen quickly; the real wasm-opt pass runs
+# later after asyncify instrumentation.
 mv /opt/binaryen/bin/wasm-opt /opt/binaryen/bin/wasm-opt-real
 cp "$REPO_DIR/tools/wasm-opt" /opt/binaryen/bin/wasm-opt
 chmod +x /opt/binaryen/bin/wasm-opt
 
+# ---------------------------------------------------------------------------
+# Compile asyncify jump stubs into a static library.
+# ---------------------------------------------------------------------------
 cd "$REPO_DIR/stubs"
 wasic -flto -O3 -c machine.c -o machine.o
 wasic -flto -O3 -c runtime.c -o runtime.o
@@ -24,22 +68,66 @@ wasic -flto -O3 -c setjmp_core.S -o setjmp_core.o
 "${WASI_SDK_PATH}/bin/llvm-ar" crs libasyncjmp.a \
     machine.o runtime.o setjmp.o machine_core.o setjmp_core.o
 
+# ---------------------------------------------------------------------------
+# Copy zeroperl main file and generate xs_init.inc if needed.
+# ---------------------------------------------------------------------------
 cd "$WASM_DIR"
 cp "$REPO_DIR/stubs/zeroperl.c" .
 
-CFLAGS="-c -O3 -flto -DNO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID \
+# xs_init.inc lists the static XS extensions to bootstrap.  For non-full
+# shrink builds it is generated on-the-fly from the .a files in lib/auto.
+# emit-wasm-xs-bundle.pl is the single source of truth for xs_init.inc generation.
+if [ ! -f "$REPO_DIR/gen/xs_init.inc" ]; then
+    ALL_EXTS_FILE=$(mktemp)
+    find lib/auto -name '*.a' -not -name 'DynaLoader.a' | \
+        sed 's|^lib/auto/||; s|/[^/]*\.a$||' | sort -u > "$ALL_EXTS_FILE"
+    if [ -s "$ALL_EXTS_FILE" ]; then
+        perl "$REPO_DIR/tools/emit-wasm-xs-bundle.pl" \
+            --native-prefix "$WASM_DIR" \
+            --static-ext-file "$ALL_EXTS_FILE" \
+            --baseline-file "$ALL_EXTS_FILE" \
+            --hints-out "$REPO_DIR/gen/hints-static-ext.fragment" \
+            --libs-out "$REPO_DIR/gen/wasm-auto-libs.txt" \
+            --xs-init-out "$REPO_DIR/gen/xs_init.inc"
+    fi
+    rm -f "$ALL_EXTS_FILE"
+fi
+
+# ---------------------------------------------------------------------------
+# Compile zeroperl and stub objects.
+# ---------------------------------------------------------------------------
+CFLAGS="-c -O3 -flto $NO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_GETPID \
 -D_GNU_SOURCE -D_POSIX_C_SOURCE -DBIG_TIME -Wno-implicit-function-declaration \
 -Wno-null-pointer-arithmetic -Wno-incomplete-setjmp-declaration -Wno-incompatible-library-redeclaration \
 -Wno-int-conversion -D_WASI_EMULATED_SIGNAL \
 -include /opt/wasi-sdk/share/wasi-sysroot/include/wasm32-wasi/fcntl.h \
--I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
+-I$REPO_DIR/gen -I$REPO_DIR/stubs -I. -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
 
+if [ -f "$REPO_DIR/gen/xs_init.inc" ]; then
+    CFLAGS="$CFLAGS -DZEROPERL_USE_GENERATED_XS_INIT"
+fi
+if [ "$ZEROPERL_SFS_COMPRESS" = "true" ]; then
+    CFLAGS="$CFLAGS -DZEROPERL_SFS_COMPRESS"
+fi
 wasic $CFLAGS zeroperl.c -o zeroperl.o
 wasic $CFLAGS "$REPO_DIR/stubs/stubs.c" -o stubs.o
+wasic $CFLAGS "$REPO_DIR/stubs/sfs_runtime.c" -o sfs_runtime.o
+wasic $CFLAGS "$REPO_DIR/stubs/sfs_compression.c" -o sfs_compression.o
 
+# zeroperl_data.c contains the embedded SFS blob; compile at -O0 so the
+# linker does not strip the data section.
 CFLAGS_DATA="-c -O0 -std=c23 \
--I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
+-I$REPO_DIR/gen -I$REPO_DIR/stubs -I. -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
 wasic $CFLAGS_DATA "$REPO_DIR/gen/zeroperl_data.c" -o zeroperl_data.o
+
+GENERATED_AUTO_LIBS=""
+# Discover .a files dynamically so the list matches what was actually built
+# for the target Perl version.
+DEFAULT_AUTO_LIBS=$(find lib/auto -name '*.a' -not -name 'DynaLoader.a' | sort | tr '\n' ' ')
+if [ "$ZEROPERL_SHRINK" = "full" ] && [ -f "$REPO_DIR/gen/wasm-auto-libs.txt" ]; then
+    GENERATED_AUTO_LIBS=$(tr '\n' ' ' < "$REPO_DIR/gen/wasm-auto-libs.txt")
+fi
+AUTO_LIBS="${GENERATED_AUTO_LIBS:-$DEFAULT_AUTO_LIBS}"
 
 wasic \
     -o zeroperl_reactor.wasm \
@@ -55,7 +143,7 @@ wasic \
     -Wl,--export=__table_base \
     -Wl,--export=malloc \
     -Wl,--export=free \
-    -DNO_MATHOMS \
+    $NO_MATHOMS \
     -D_WASI_EMULATED_PROCESS_CLOCKS -lwasi-emulated-process-clocks \
     -D_WASI_EMULATED_GETPID -lwasi-emulated-getpid \
     -D_GNU_SOURCE -D_POSIX_C_SOURCE \
@@ -63,52 +151,21 @@ wasic \
     -D_WASI_EMULATED_SIGNAL -lwasi-emulated-signal \
     -lwasi-emulated-mman \
     -Wl,--strip-all \
-    zeroperl.o stubs.o zeroperl_data.o \
+    zeroperl.o stubs.o sfs_runtime.o sfs_compression.o zeroperl_data.o \
     -Wl,--whole-archive "$REPO_DIR/stubs/libasyncjmp.a" -Wl,--no-whole-archive \
     -Wl,--whole-archive libperl.a -Wl,--no-whole-archive \
     -Wl,--wrap=fopen -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=read \
     -Wl,--wrap=lseek -Wl,--wrap=stat -Wl,--wrap=fstat \
-    lib/auto/File/Glob/Glob.a \
-    lib/auto/Sys/Hostname/Hostname.a \
-    lib/auto/PerlIO/via/via.a \
-    lib/auto/PerlIO/mmap/mmap.a \
-    lib/auto/PerlIO/encoding/encoding.a \
-    lib/auto/attributes/attributes.a \
-    lib/auto/Unicode/Normalize/Normalize.a \
-    lib/auto/Unicode/Collate/Collate.a \
-    lib/auto/re/re.a \
-    lib/auto/Digest/MD5/MD5.a \
-    lib/auto/Digest/SHA/SHA.a \
-    lib/auto/Math/BigInt/FastCalc/FastCalc.a \
-    lib/auto/Data/Dumper/Dumper.a \
-    lib/auto/I18N/Langinfo/Langinfo.a \
-    lib/auto/Time/Piece/Piece.a \
-    lib/auto/IO/IO.a \
-    lib/auto/Hash/Util/FieldHash/FieldHash.a \
-    lib/auto/Hash/Util/Util.a \
-    lib/auto/Filter/Util/Call/Call.a \
-    lib/auto/Encode/Unicode/Unicode.a \
-    lib/auto/Encode/Encode.a \
-    lib/auto/Encode/JP/JP.a \
-    lib/auto/Encode/KR/KR.a \
-    lib/auto/Encode/EBCDIC/EBCDIC.a \
-    lib/auto/Encode/CN/CN.a \
-    lib/auto/Encode/Symbol/Symbol.a \
-    lib/auto/Encode/Byte/Byte.a \
-    lib/auto/Encode/TW/TW.a \
-    lib/auto/Compress/Raw/Zlib/Zlib.a \
-    lib/auto/Compress/Raw/Bzip2/Bzip2.a \
-    lib/auto/MIME/Base64/Base64.a \
-    lib/auto/Cwd/Cwd.a \
-    lib/auto/List/Util/Util.a \
-    lib/auto/Fcntl/Fcntl.a \
-    lib/auto/Opcode/Opcode.a \
-    lib/auto/Time/HiRes/HiRes.a \
+    $AUTO_LIBS \
     $(cat ext.libs) \
-    -lz -lbz2 \
+    -lz -lbz2 -llz4 \
     -lm -lwasi-emulated-signal -lwasi-emulated-getpid \
     -lwasi-emulated-process-clocks -lwasi-emulated-mman \
     -ferror-limit=0
+
+# ---------------------------------------------------------------------------
+# Link the final reactor WASM, then run wasm-opt (asyncify + strip).
+# ---------------------------------------------------------------------------
 
 # Restore real wasm-opt for asyncify pass
 mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
