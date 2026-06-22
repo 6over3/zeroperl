@@ -10,6 +10,14 @@ ASYNCIFY="${ASYNCIFY:-true}"
 
 export PATH="$REPO_DIR/wasi-bin:$PATH"
 
+# Ensure original wasm-opt is restored on exit
+cleanup() {
+    if [ -f /opt/binaryen/bin/wasm-opt-real ]; then
+        mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
+    fi
+}
+trap cleanup EXIT INT TERM
+
 # Use fake wasm-opt during compile/link to prevent post-link optimization
 mv /opt/binaryen/bin/wasm-opt /opt/binaryen/bin/wasm-opt-real
 cp "$REPO_DIR/tools/wasm-opt" /opt/binaryen/bin/wasm-opt
@@ -116,7 +124,7 @@ wasic \
     -ferror-limit=0
 
 # Restore real wasm-opt for asyncify pass
-mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
+cleanup
 
 if [ "$ASYNCIFY" = "true" ]; then
     wasm-opt zeroperl_reactor.wasm -O3 --strip-debug --enable-bulk-memory \

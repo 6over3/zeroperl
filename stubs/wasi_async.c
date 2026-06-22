@@ -1,9 +1,9 @@
 /*
  * Custom async WASI fd operations - resolves conflict between
- * Google Asyncify (for WASI I/O) and Ruby/wasm asyncjmp setjmp.
+ * Google Asyncify (for WASI I/O) and WebAssembly Perl5 asyncjmp setjmp.
  * 
  * Problem:
- * - Ruby/wasm asyncjmp uses pl_asyncify_unwind_buf to track setjmp context.
+ * - Perl5 asyncjmp uses pl_asyncify_unwind_buf to track setjmp context.
  * - WASI SDK's fd_read internally calls raw asyncify_start_unwind() which
  *   does NOT set pl_asyncify_unwind_buf (it doesn't include asyncify.h).
  * - When both are active simultaneously, asyncjmp_rt_start's loop sees
@@ -26,6 +26,7 @@
 #include <string.h>
 #include <wasi/api.h>
 #include "machine.h"
+#include "asyncify.h"
 
 /*
  * WASI import declarations - these reference the actual host implementations.
@@ -49,13 +50,18 @@ __wasi_errno_t __wasi_fd_pread_impl(
 
 /*
  * Async read context - persists in WASM linear memory across unwind/rewind.
- * This is the key: we store state in linear memory (not on C stack),
- * so it survives the asyncify unwind/rewind cycle.
  */
+#define MAX_SAVED_IOVS 16
+
 typedef struct {
-    __wasi_fd_t       fd;
-    uint8_t          *buf;      /* pointer into caller's buffer */
-    size_t            buf_len;  /* length of caller's buffer */
+    uint8_t *buf;
+    size_t buf_len;
+} saved_iov_t;
+
+static saved_iov_t _saved_iovs[MAX_SAVED_IOVS];
+static size_t _saved_iovs_len = 0;
+
+typedef struct {
     __wasi_size_t     nread;    /* result */
     __wasi_errno_t    err;      /* result errno */
     bool              in_progress;
@@ -67,15 +73,15 @@ static async_read_ctx_t _ars = { .in_progress = false };
  * __wasi_fd_read - custom async implementation using isolated async web API.
  * 
  * Flow:
- * 1. First call: save state to linear memory, call async_web_api_unwind().
+ * 1. First call: save buffer pointers to linear memory, call async_web_api_unwind().
  *    async_web_api_unwind() does: init _async_web_api_buf, asyncify_start_unwind.
  *    Returns to runtime loop.
  * 2. runtime loop: async_web_api_handle_unwind() returns _async_web_api_buf,
- *    calls asyncify_start_rewind(), rewind resumes at step 3.
- * 3. Resume after rewind: call __wasi_fd_read_impl (blocking host call),
- *    cache result in _ars (linear memory), call async_web_api_stop(),
- *    return to caller (which is the rewind target in __wrap_read).
- * 4. Subsequent calls return cached result.
+ *    calls asyncify_start_rewind(), rewind resumes after async_web_api_unwind().
+ * 3. Resume after rewind: detects rewind state using asyncify_get_state() == 2.
+ *    Calls async_web_api_stop() to transition asyncify state back to normal,
+ *    then calls __wasi_fd_read_impl (blocking host call) using saved buffers,
+ *    and returns the result.
  */
 __attribute__((noinline)) 
 __wasi_errno_t __wasi_fd_read(
@@ -84,57 +90,43 @@ __wasi_errno_t __wasi_fd_read(
     size_t                   iovs_len,
     __wasi_size_t           *nread)
 {
-    /* Check if we completed a previous async read - return cached result */
-    if (_ars.in_progress == false && _ars.buf != NULL) {
-        /* Completed read from a previous async call */
-        if (nread) *nread = _ars.nread;
-        _ars.buf = NULL;
-        return _ars.err;
+    /* First call: initiate async read */
+    if (iovs_len > 0 && iovs) {
+        _saved_iovs_len = iovs_len < MAX_SAVED_IOVS ? iovs_len : MAX_SAVED_IOVS;
+        for (size_t i = 0; i < _saved_iovs_len; i++) {
+            _saved_iovs[i].buf = (uint8_t*)(uintptr_t)iovs[i].buf;
+            _saved_iovs[i].buf_len = iovs[i].buf_len;
+        }
+        _ars.nread = 0;
+        _ars.err = __WASI_ERRNO_SUCCESS;
+        _ars.in_progress = true;
+    } else {
+        return __WASI_ERRNO_INVAL;
     }
     
-    /* Check if we're resuming after an async unwind (rewind landed here) */
-    if (_ars.in_progress) {
-        /* Rewind happened: do the actual blocking read now */
+    async_web_api_unwind();
+    
+    /* During rewind, execution resumes here! */
+    if (asyncify_get_state() == 2) { // 2 == ASYNCIFY_STATE_REWINDING
+        /* Stop async web API unwind and restore context */
+        async_web_api_stop();
         _ars.in_progress = false;
         
-        if (iovs_len > 0 && iovs && _ars.buf != NULL) {
-            /* Read into the saved buffer pointer (still valid since it's linear memory) */
-            __wasi_iovec_t local_iov = { .buf = _ars.buf, .buf_len = _ars.buf_len };
-            _ars.err = __wasi_fd_read_impl(fd, &local_iov, 1, &_ars.nread);
+        if (_saved_iovs_len > 0) {
+            /* Construct temporary iovec array using saved pointers */
+            __wasi_iovec_t local_iovs[MAX_SAVED_IOVS];
+            for (size_t i = 0; i < _saved_iovs_len; i++) {
+                local_iovs[i].buf = _saved_iovs[i].buf;
+                local_iovs[i].buf_len = _saved_iovs[i].buf_len;
+            }
+            _ars.err = __wasi_fd_read_impl(fd, local_iovs, _saved_iovs_len, &_ars.nread);
         } else {
             _ars.nread = 0;
             _ars.err = __WASI_ERRNO_SUCCESS;
         }
         
-        if (nread) *nread = _ars.nread;
-        
-        /* Stop async web API unwind and return to caller */
-        async_web_api_stop();
-        return _ars.err;
+        _saved_iovs_len = 0; // reset
     }
-    
-    /* First call: initiate async read */
-    if (iovs_len > 0 && iovs) {
-        _ars.fd = fd;
-        _ars.buf = (uint8_t*)(uintptr_t)iovs[0].buf;
-        _ars.buf_len = iovs[0].buf_len;
-        _ars.nread = 0;
-        _ars.err = __WASI_ERRNO_SUCCESS;
-        _ars.in_progress = true;  /* Mark as "waiting for rewind" */
-    } else {
-        return __WASI_ERRNO_INVAL;
-    }
-    
-    /* 
-     * Key line: call async_web_api_unwind() instead of raw asyncify_start_unwind.
-     * This uses _async_web_api_buf (separate from asyncjmp's setjmp buffer).
-     * runtime.c's async_web_api_handle_unwind() will catch the rewind.
-     */
-    async_web_api_unwind();
-    
-    /* After rewind, we resume here. The in_progress flag tells us
-     * this is the rewind path, so we go to the "if (in_progress)" block above. */
-    _ars.in_progress = false;
     
     if (nread) *nread = _ars.nread;
     return _ars.err;
