@@ -24,6 +24,11 @@ wasic -flto -O3 -c setjmp_core.S -o setjmp_core.o
 "${WASI_SDK_PATH}/bin/llvm-ar" crs libasyncjmp.a \
     machine.o runtime.o setjmp.o machine_core.o setjmp_core.o
 
+# Build custom async WASI wrappers (for async web API isolation)
+wasic -flto -O3 -c wasi_async.c -o wasi_async.o \
+    -I$REPO_DIR/stubs \
+    -include /opt/wasi-sdk/share/wasi-sysroot/include/wasm32-wasi/fcntl.h
+
 cd "$WASM_DIR"
 cp "$REPO_DIR/stubs/zeroperl.c" .
 
@@ -63,7 +68,7 @@ wasic \
     -D_WASI_EMULATED_SIGNAL -lwasi-emulated-signal \
     -lwasi-emulated-mman \
     -Wl,--strip-all \
-    zeroperl.o stubs.o zeroperl_data.o \
+    zeroperl.o stubs.o zeroperl_data.o wasi_async.o \
     -Wl,--whole-archive "$REPO_DIR/stubs/libasyncjmp.a" -Wl,--no-whole-archive \
     -Wl,--whole-archive libperl.a -Wl,--no-whole-archive \
     -Wl,--wrap=fopen -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=read \
