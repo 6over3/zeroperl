@@ -28,6 +28,7 @@ wasic -flto -O3 -c setjmp_core.S -o setjmp_core.o
 wasic -flto -O3 -c wasi_async.c -o wasi_async.o \
     -I$REPO_DIR/stubs \
     -include /opt/wasi-sdk/share/wasi-sysroot/include/wasm32-wasi/fcntl.h
+cp wasi_async.o "$WASM_DIR/"
 
 cd "$WASM_DIR"
 cp "$REPO_DIR/stubs/zeroperl.c" .

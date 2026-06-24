@@ -110,6 +110,7 @@ __wasi_errno_t __wasi_fd_read(
 
         /* Stop async web API unwind and return to caller */
         async_web_api_stop();
+        _ars.buf = NULL;
         return _ars.err;
     }
 

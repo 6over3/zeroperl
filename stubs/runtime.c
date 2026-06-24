@@ -15,6 +15,13 @@ int asyncjmp_rt_start(int(main)(int argc, char **argv), int argc, char **argv)
     {
         result = main(argc, argv);
 
+        /* Handle async web API unwind before setjmp buffer checks */
+        if ((asyncify_buf = async_web_api_handle_unwind()) != NULL)
+        {
+            asyncify_start_rewind(asyncify_buf);
+            continue;
+        }
+
         /*
          * Only call asyncify_stop_unwind() when this was a C-level unwind
          * initiated by zeroperl's own asyncify_start_unwind() macro.
@@ -50,13 +57,6 @@ int asyncjmp_rt_start(int(main)(int argc, char **argv), int argc, char **argv)
             }
             /* pl_asyncify_unwind_buf was set but no handler claimed it */
             break;
-        }
-
-        /* Handle async web API unwind - uses separate buffer from setjmp */
-        if ((asyncify_buf = async_web_api_handle_unwind()) != NULL)
-        {
-            asyncify_start_rewind(asyncify_buf);
-            continue;
         }
 
         /* Normal exit or async import unwind */

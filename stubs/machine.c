@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/* WASM import without touching pl_asyncify_unwind_buf (asyncjmp setjmp buffer). */
+__attribute__((import_module("asyncify"), import_name("start_unwind")))
+static void raw_asyncify_start_unwind(void *buf);
+
 #ifndef WASM_SCAN_STACK_BUFFER_SIZE
 #define WASM_SCAN_STACK_BUFFER_SIZE 6144
 #endif
@@ -53,7 +57,7 @@ void async_web_api_unwind(void)
     {
         _async_web_api_in_unwind = 1;
         init_asyncify_buf(&_async_web_api_buf);
-        asyncify_start_unwind(&_async_web_api_buf);
+        raw_asyncify_start_unwind(&_async_web_api_buf);
     }
 }
 
