@@ -662,7 +662,7 @@ static XS(xs_host_dispatch) {
 }
 
 //! Internal callback for initialization
-static int zeroperl_init_callback(int argc, char **argv) {
+int zeroperl_init_callback(int argc, char **argv) {
   (void)argc;
   zeroperl_context *ctx = (zeroperl_context *)argv;
 
@@ -2243,6 +2243,8 @@ EXTERN_C void boot_Fcntl(pTHX_ CV *cv);
 EXTERN_C void boot_Opcode(pTHX_ CV *cv);
 EXTERN_C void boot_Time__HiRes(pTHX_ CV* cv);
 
+#include "zeroperl_web.c"
+
 static void xs_init(pTHX) {
   static const char file[] = __FILE__;
   dXSUB_SYS;
@@ -2285,4 +2287,5 @@ static void xs_init(pTHX) {
   newXS("Fcntl::bootstrap", boot_Fcntl, file);
   newXS("Opcode::bootstrap", boot_Opcode, file);
   newXS("Time::HiRes::bootstrap", boot_Time__HiRes, file);
+  zeroperl_web_bootstrap(file);
 }
