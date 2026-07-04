@@ -36,6 +36,7 @@ CFLAGS="-c -O3 -flto -DNO_MATHOMS -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULAT
 
 wasic $CFLAGS zeroperl.c -o zeroperl.o
 wasic $CFLAGS "$REPO_DIR/stubs/stubs.c" -o stubs.o
+wasic $CFLAGS "$REPO_DIR/stubs/zeroperl_web.c" -o zeroperl_web.o
 
 CFLAGS_DATA="-c -O0 -std=c23 \
 -I. -I$REPO_DIR/stubs -I$REPO_DIR/gen -cxx-isystem /opt/wasi-sdk/share/wasi-sysroot/include"
@@ -63,7 +64,7 @@ wasic \
     -D_WASI_EMULATED_SIGNAL -lwasi-emulated-signal \
     -lwasi-emulated-mman \
     -Wl,--strip-all \
-    zeroperl.o stubs.o zeroperl_data.o \
+    zeroperl.o stubs.o zeroperl_web.o zeroperl_data.o \
     -Wl,--whole-archive "$REPO_DIR/stubs/libasyncjmp.a" -Wl,--no-whole-archive \
     -Wl,--whole-archive libperl.a -Wl,--no-whole-archive \
     -Wl,--wrap=fopen -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=read \
