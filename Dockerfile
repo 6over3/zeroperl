@@ -78,6 +78,7 @@ COPY pipeline/ /build/repo/pipeline/
 COPY patches/ /build/repo/patches/
 COPY stubs/ /build/repo/stubs/
 COPY tools/ /build/repo/tools/
+COPY AsyncWebAPI.pm AsyncWebAPI.xs Makefile.PL /build/repo/
 RUN chmod +x /build/repo/wasi-bin/* /build/repo/pipeline/*.sh && mkdir -p /build/repo/gen
 
 RUN mv /opt/binaryen/bin/wasm-opt /opt/binaryen/bin/wasm-opt-real && \

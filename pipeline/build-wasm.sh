@@ -21,8 +21,9 @@ wasic -flto -O3 -c runtime.c -o runtime.o
 wasic -flto -O3 -c setjmp.c -o setjmp.o
 wasic -flto -O3 -c machine_core.S -o machine_core.o
 wasic -flto -O3 -c setjmp_core.S -o setjmp_core.o
+wasic -flto -O3 -c async_web_api.c -o async_web_api.o
 "${WASI_SDK_PATH}/bin/llvm-ar" crs libasyncjmp.a \
-    machine.o runtime.o setjmp.o machine_core.o setjmp_core.o
+    machine.o runtime.o setjmp.o machine_core.o setjmp_core.o async_web_api.o
 
 cd "$WASM_DIR"
 cp "$REPO_DIR/stubs/zeroperl.c" .
@@ -104,6 +105,7 @@ wasic \
     lib/auto/Fcntl/Fcntl.a \
     lib/auto/Opcode/Opcode.a \
     lib/auto/Time/HiRes/HiRes.a \
+    lib/auto/AsyncWebAPI/AsyncWebAPI.a \
     $(cat ext.libs) \
     -lz -lbz2 \
     -lm -lwasi-emulated-signal -lwasi-emulated-getpid \
@@ -116,7 +118,7 @@ mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
 if [ "$ASYNCIFY" = "true" ]; then
     wasm-opt zeroperl_reactor.wasm -O3 --strip-debug --enable-bulk-memory \
         --enable-nontrapping-float-to-int --asyncify \
-        --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read,env.call_host_function \
+        --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read,env.call_host_function,env.async_web_api_host_call \
         ${WASM_OPT_FLAGS} \
         -o zeroperl.wasm
 else

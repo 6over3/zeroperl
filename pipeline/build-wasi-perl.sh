@@ -30,6 +30,12 @@ chmod u+w ./ext/File-Glob/bsd_glob.c
 patch -p1 < "$REPO_DIR/patches/glob.patch"
 chmod u-w ./ext/File-Glob/bsd_glob.c
 
+# Copy AsyncWebAPI files
+mkdir -p ext/AsyncWebAPI
+cp "$REPO_DIR/AsyncWebAPI.pm" ext/AsyncWebAPI/
+cp "$REPO_DIR/AsyncWebAPI.xs" ext/AsyncWebAPI/
+cp "$REPO_DIR/Makefile.PL" ext/AsyncWebAPI/
+
 # Configure
 wasiconfigure sh ./Configure -sde -Dhintfile=wasi
 
