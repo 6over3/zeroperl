@@ -1,0 +1,39 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+
+void* async_worker(void* arg) {
+    const char* payload = (const char*)arg;
+    
+    if (payload) {
+        // Ensure output is flushed immediately for async responsiveness
+        printf("{\"id\":\"%s\",\"status\":\"complete\"}\n", payload);
+        fflush(stdout);
+    }
+
+    return NULL;
+}
+
+int main(int argc, char* argv[]) {
+    // Handle case where a specific ID/Argument is passed
+    if (argc > 1) {
+        // Allocate a dynamic copy to prevent dangling pointer issues in thread
+        char* task_id = (char*)malloc(strlen(argv[1]) + 1);
+        
+        if (task_id) {
+            strcpy(task_id, argv[1]);
+            
+            pthread_t thread;
+            if (pthread_create(&thread, NULL, async_worker, (void*)task_id) == 0) {
+                // Join ensures the main thread waits for the async task to finish
+                pthread_join(thread, NULL);
+            }
+            
+            free(task_id);
+        }
+    }
+
+    return 0;
+}
