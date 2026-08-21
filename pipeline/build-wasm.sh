@@ -116,7 +116,7 @@ mv /opt/binaryen/bin/wasm-opt-real /opt/binaryen/bin/wasm-opt
 if [ "$ASYNCIFY" = "true" ]; then
     wasm-opt zeroperl_reactor.wasm -O3 --strip-debug --enable-bulk-memory \
         --enable-nontrapping-float-to-int --asyncify \
-        --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read,env.call_host_function \
+        --pass-arg=asyncify-imports@wasi_snapshot_preview1.fd_read,env.call_host_function,env.host_sleep,env.host_fetch \
         ${WASM_OPT_FLAGS} \
         -o zeroperl.wasm
 else

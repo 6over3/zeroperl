@@ -555,6 +555,14 @@ ZEROPERL_IMPORT("call_host_function")
 zeroperl_value *host_call_function(int32_t func_id, int32_t argc,
                                    zeroperl_value **argv);
 
+//! Host sleep - suspends execution for the given number of milliseconds
+ZEROPERL_IMPORT("host_sleep")
+void host_sleep(int32_t ms);
+
+//! Host fetch - performs an HTTP GET and returns the response body as a string
+ZEROPERL_IMPORT("host_fetch")
+zeroperl_value *host_fetch(const char *url);
+
 //! Registry for host function IDs
 typedef struct {
   int32_t func_id;
@@ -2243,6 +2251,31 @@ EXTERN_C void boot_Fcntl(pTHX_ CV *cv);
 EXTERN_C void boot_Opcode(pTHX_ CV *cv);
 EXTERN_C void boot_Time__HiRes(pTHX_ CV* cv);
 
+static XS(xs_zeroperl_sleep) {
+  dXSARGS;
+  if (items < 1)
+    croak("Usage: zeroperl::sleep(ms)");
+  int32_t ms = (int32_t)SvIV(ST(0));
+  host_sleep(ms);
+  XSRETURN_EMPTY;
+}
+
+static XS(xs_zeroperl_fetch) {
+  dXSARGS;
+  if (items < 1)
+    croak("Usage: zeroperl::fetch(url)");
+  const char *url = SvPV_nolen(ST(0));
+  zeroperl_value *result = host_fetch(url);
+  if (result && result->sv) {
+    SV *sv = result->sv;
+    SvREFCNT_inc(sv);
+    free(result);
+    ST(0) = sv_2mortal(sv);
+    XSRETURN(1);
+  }
+  XSRETURN_UNDEF;
+}
+
 static void xs_init(pTHX) {
   static const char file[] = __FILE__;
   dXSUB_SYS;
@@ -2285,4 +2318,6 @@ static void xs_init(pTHX) {
   newXS("Fcntl::bootstrap", boot_Fcntl, file);
   newXS("Opcode::bootstrap", boot_Opcode, file);
   newXS("Time::HiRes::bootstrap", boot_Time__HiRes, file);
+  newXS("zeroperl::sleep", xs_zeroperl_sleep, file);
+  newXS("zeroperl::fetch", xs_zeroperl_fetch, file);
 }
