@@ -44,7 +44,7 @@ container build --build-arg PERL_VERSION=5.42.0 --build-arg BUILD_EXIFTOOL=false
 | Arg | Default | |
 |-----|---------|--|
 | `PERL_VERSION` | `5.42.0` | Perl source version |
-| `EXIFTOOL_VERSION` | `13.42` | ExifTool version |
+| `EXIFTOOL_VERSION` | `13.59` | ExifTool version |
 | `BUILD_EXIFTOOL` | `true` | Include ExifTool |
 | `STACK_SIZE` | `8388608` | WASM stack (bytes) |
 | `INITIAL_MEMORY` | `33554432` | WASM initial memory (bytes) |

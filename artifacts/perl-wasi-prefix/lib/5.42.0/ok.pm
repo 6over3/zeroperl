@@ -1,0 +1,21 @@
+package ok;
+our $VERSION = '1.302210';
+
+use strict;
+use Test::More ();
+
+sub import {
+    shift;
+
+    if (@_) {
+        goto &Test::More::pass if $_[0] eq 'ok';
+        goto &Test::More::use_ok;
+    }
+
+    my ( undef, $file, $line ) = caller();
+    ( $file =~ /^\(eval/ )
+      or die "Not enough arguments for 'use ok' at $file line $line\n";
+}
+
+__END__
+

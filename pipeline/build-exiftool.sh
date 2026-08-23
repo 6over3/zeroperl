@@ -8,7 +8,7 @@ REPO_DIR="${REPO_DIR:-/build/repo}"
 export PATH="$NATIVE_DIR/prefix/bin:$PATH"
 PERL="$NATIVE_DIR/prefix/bin/perl"
 
-curl -fsSL "https://www.exiftool.org/Image-ExifTool-${EXIFTOOL_VERSION}.tar.gz" | tar -xzf - -C /build
+curl -fsSL "https://sourceforge.net/projects/exiftool/files/Image-ExifTool-${EXIFTOOL_VERSION}.tar.gz/download" | tar -xzf - -C /build
 cd "/build/Image-ExifTool-${EXIFTOOL_VERSION}"
 $PERL Makefile.PL
 make

@@ -10,7 +10,7 @@ on:
       exiftool-version:
         description: "Version of ExifTool to build"
         required: false
-        default: "13.42"
+        default: "13.59"
       build-exiftool:
         description: "Whether to build ExifTool"
         required: false
