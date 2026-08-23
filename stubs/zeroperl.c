@@ -24,7 +24,7 @@
 
 //! Export macro for public API functions - combines export_name for WASI with
 //! visibility attribute
-#if defined(__WASI__) || defined(__wasi__)
+#if defined(__WASI__) || defined(__wasi__) || defined(__wasm__) || defined(__EMSCRIPTEN__)
 #define ZEROPERL_API(name)                                                     \
   __attribute__((export_name(name))) __attribute__((visibility("default")))
 #define ZEROPERL_IMPORT(name)                                                  \
