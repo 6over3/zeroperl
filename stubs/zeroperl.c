@@ -1671,14 +1671,11 @@ bool zeroperl_hash_delete(zeroperl_hash *hash, const char *key) {
   }
 
   dTHX;
-  SV *sv = hv_delete(hash->hv, key, strlen(key), 0);
-
-  if (sv) {
-    SvREFCNT_dec(sv);
-    return true;
-  }
-
-  return false;
+  const I32 key_length = strlen(key);
+  bool existed = hv_exists(hash->hv, key, key_length);
+  // Let Perl release the deleted value; a returned value would be mortal.
+  hv_delete(hash->hv, key, key_length, G_DISCARD);
+  return existed;
 }
 
 //! Clear all entries from a hash
